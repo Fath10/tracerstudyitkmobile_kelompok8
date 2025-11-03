@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'home_page.dart';
 import '../database/database_helper.dart';
+import '../services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -31,20 +32,23 @@ class _LoginPageState extends State<LoginPage> {
       });
       
       try {
-        // Try to login with database
-        final employee = await DatabaseHelper.instance.login(
+        // Try to login with universal login (checks both employees and users)
+        final account = await DatabaseHelper.instance.universalLogin(
           _emailController.text.trim(),
           _passwordController.text,
         );
         
         if (!mounted) return;
         
-        if (employee != null) {
+        if (account != null) {
+          // Set current user in auth service
+          AuthService.setCurrentUser(account);
+          
           // Login successful
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => HomePage(employee: employee),
+              builder: (context) => HomePage(employee: account),
             ),
           );
         } else {

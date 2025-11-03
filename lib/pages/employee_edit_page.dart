@@ -27,36 +27,13 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
   // Dropdown values
   String? _selectedDepartment;
   String? _selectedPosition;
-  
-  // Module permissions
-  bool _canAccessUserDirectory = false;
-  bool _canAccessEmployeeDirectory = false;
-  bool _canAccessReports = false;
-  bool _canAccessSettings = false;
+  String _selectedRole = 'surveyor'; // Default role
+  String? _selectedProdi; // Only for team_prodi role
   
   String? createdAt;
   String? lastModified;
   bool isNewEmployee = true;
   bool _obscurePassword = true;
-  
-  // Department options
-  final List<String> _departments = [
-    'Mitra',
-    'Hukitan',
-    'Tracer Study',
-    'Fakultas FSTI',
-    'Matematika',
-    'Aktuaria',
-  ];
-  
-  // Position options
-  final List<String> _positions = [
-    'Pimpinan Unit',
-    'Staff',
-    'Manager',
-    'Coordinator',
-    'Director',
-  ];
 
   @override
   void initState() {
@@ -90,11 +67,9 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
     _selectedDepartment = widget.employee?['department']?.toString();
     _selectedPosition = widget.employee?['position']?.toString();
     
-    // Load module permissions
-    _canAccessUserDirectory = widget.employee?['canAccessUserDirectory'] == true || widget.employee?['canAccessUserDirectory'] == 1;
-    _canAccessEmployeeDirectory = widget.employee?['canAccessEmployeeDirectory'] == true || widget.employee?['canAccessEmployeeDirectory'] == 1;
-    _canAccessReports = widget.employee?['canAccessReports'] == true || widget.employee?['canAccessReports'] == 1;
-    _canAccessSettings = widget.employee?['canAccessSettings'] == true || widget.employee?['canAccessSettings'] == 1;
+    // Load role and prodi
+    _selectedRole = widget.employee?['role']?.toString() ?? 'surveyor';
+    _selectedProdi = widget.employee?['prodi']?.toString();
     
     createdAt = widget.employee?['createdAt']?.toString();
     lastModified = widget.employee?['updatedAt']?.toString();
@@ -157,10 +132,8 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
           'birthday': _birthdayController.text.isEmpty ? null : _birthdayController.text,
           'department': _selectedDepartment,
           'position': _selectedPosition,
-          'canAccessUserDirectory': _canAccessUserDirectory ? 1 : 0,
-          'canAccessEmployeeDirectory': _canAccessEmployeeDirectory ? 1 : 0,
-          'canAccessReports': _canAccessReports ? 1 : 0,
-          'canAccessSettings': _canAccessSettings ? 1 : 0,
+          'role': _selectedRole,
+          'prodi': _selectedRole == 'team_prodi' ? _selectedProdi : null,
         };
         
         if (isNewEmployee) {
@@ -333,7 +306,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
               ),
               tabs: const [
                 Tab(text: 'Personal'),
-                Tab(text: 'Module Permissions'),
+                Tab(text: 'Access Control'),
               ],
             ),
           ),
@@ -587,91 +560,222 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Department dropdown
-          _buildDropdownField(
-            label: 'Department',
-            value: _selectedDepartment,
-            items: _departments,
-            isRequired: true,
-            onChanged: (value) {
-              setState(() {
-                _selectedDepartment = value;
-              });
-            },
+          // Role Section Header
+          Row(
+            children: [
+              Icon(Icons.security, color: Colors.blue[700], size: 20),
+              const SizedBox(width: 8),
+              const Text(
+                'Access Role',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          
-          // Position dropdown
-          _buildDropdownField(
-            label: 'Position',
-            value: _selectedPosition,
-            items: _positions,
-            isRequired: true,
-            onChanged: (value) {
-              setState(() {
-                _selectedPosition = value;
-              });
-            },
-          ),
-          const SizedBox(height: 24),
-          
+          const SizedBox(height: 8),
           Text(
-            'Select which modules this employee can access',
+            'Select the access level for this employee',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 13,
               color: Colors.grey[600],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           
-          // Permission checkboxes
-          _buildPermissionCheckbox(
-            title: 'User Directory',
-            subtitle: 'Allow access to view and manage user directory',
-            value: _canAccessUserDirectory,
+          // Role dropdown
+          _buildDropdownField(
+            label: 'Role',
+            value: _selectedRole,
+            items: const ['admin', 'surveyor', 'team_prodi'],
+            isRequired: true,
             onChanged: (value) {
               setState(() {
-                _canAccessUserDirectory = value ?? false;
-              });
-            },
-          ),
-          const SizedBox(height: 12),
-          
-          _buildPermissionCheckbox(
-            title: 'Employee Directory',
-            subtitle: 'Allow access to view and manage employee directory',
-            value: _canAccessEmployeeDirectory,
-            onChanged: (value) {
-              setState(() {
-                _canAccessEmployeeDirectory = value ?? false;
-              });
-            },
-          ),
-          const SizedBox(height: 12),
-          
-          _buildPermissionCheckbox(
-            title: 'Reports',
-            subtitle: 'Allow access to view and generate reports',
-            value: _canAccessReports,
-            onChanged: (value) {
-              setState(() {
-                _canAccessReports = value ?? false;
-              });
-            },
-          ),
-          const SizedBox(height: 12),
-          
-          _buildPermissionCheckbox(
-            title: 'Settings',
-            subtitle: 'Allow access to application settings',
-            value: _canAccessSettings,
-            onChanged: (value) {
-              setState(() {
-                _canAccessSettings = value ?? false;
+                _selectedRole = value!;
+                // Clear prodi if not team_prodi
+                if (_selectedRole != 'team_prodi') {
+                  _selectedProdi = null;
+                }
               });
             },
           ),
           const SizedBox(height: 16),
+          
+          // Role descriptions
+          _buildRoleInfo(_selectedRole),
+          const SizedBox(height: 24),
+          
+          // Prodi dropdown (only visible for team_prodi role)
+          if (_selectedRole == 'team_prodi') ...[
+            _buildDropdownField(
+              label: 'Prodi',
+              value: _selectedProdi,
+              items: const ['Informatics', 'Mathematics', 'Chemistry'],
+              isRequired: true,
+              onChanged: (value) {
+                setState(() {
+                  _selectedProdi = value;
+                });
+              },
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue[200]!),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue[700], size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This employee will only be able to edit surveys tagged with the selected prodi',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue[900],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildRoleInfo(String role) {
+    String title;
+    String description;
+    List<String> permissions;
+    MaterialColor colorSwatch;
+    IconData icon;
+    
+    switch (role) {
+      case 'admin':
+        title = 'Administrator';
+        description = 'Full system access';
+        permissions = [
+          'Manage all surveys',
+          'View all responses',
+          'Manage employee accounts',
+          'Manage alumni accounts',
+          'Access all system features',
+        ];
+        colorSwatch = Colors.red;
+        icon = Icons.admin_panel_settings;
+        break;
+      case 'surveyor':
+        title = 'Team Tracer';
+        description = 'Survey management access';
+        permissions = [
+          'Create and edit surveys',
+          'View survey responses',
+          'Manage questionnaires',
+        ];
+        colorSwatch = Colors.green;
+        icon = Icons.assignment;
+        break;
+      case 'team_prodi':
+        title = 'Team Prodi';
+        description = 'Prodi-specific survey access';
+        permissions = [
+          'Edit surveys for assigned prodi',
+          'View responses for assigned prodi',
+          'Limited to specific prodi only',
+        ];
+        colorSwatch = Colors.orange;
+        icon = Icons.school;
+        break;
+      default:
+        title = 'Unknown';
+        description = '';
+        permissions = [];
+        colorSwatch = Colors.grey;
+        icon = Icons.help;
+    }
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorSwatch.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorSwatch.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorSwatch.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: colorSwatch[700], size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colorSwatch[800],
+                      ),
+                    ),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Permissions:',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...permissions.map((permission) => Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.check_circle, color: colorSwatch[700], size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    permission,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          )).toList(),
         ],
       ),
     );
@@ -811,45 +915,6 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
               : null,
         ),
       ],
-    );
-  }
-
-  Widget _buildPermissionCheckbox({
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool?> onChanged,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: CheckboxListTile(
-        title: Text(
-          title,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Colors.black87,
-          ),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-          ),
-        ),
-        value: value,
-        onChanged: onChanged,
-        activeColor: Colors.blue[600],
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      ),
     );
   }
 }

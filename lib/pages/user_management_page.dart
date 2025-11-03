@@ -3,6 +3,7 @@ import '../database/database_helper.dart';
 import 'employee_directory_page.dart';
 import 'login_page.dart';
 import 'survey_management_page.dart';
+import '../services/auth_service.dart';
 
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({super.key});
@@ -15,7 +16,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   List<Map<String, dynamic>> users = [];
   bool isLoading = true;
   int currentPage = 1;
-  int itemsPerPage = 1;
+  int itemsPerPage = 10;
   String searchQuery = '';
 
   @override
@@ -27,7 +28,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   Future<void> _loadUsers() async {
     setState(() { isLoading = true; });
     try {
-      final data = await DatabaseHelper.instance.getAllEmployees();
+      final data = await DatabaseHelper.instance.getAllUsers();
       setState(() {
         users = data;
         isLoading = false;
@@ -200,7 +201,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 return;
               }
               try {
-                await DatabaseHelper.instance.createEmployee({
+                await DatabaseHelper.instance.createUser({
                   'name': name,
                   'email': email,
                   'nikKtp': nik,
@@ -335,10 +336,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
-                      child: const Center(
+                      child: Center(
                         child: Text(
-                          'U',
-                          style: TextStyle(
+                          (AuthService.currentUser?['name']?.toString() ?? 'U').substring(0, 1).toUpperCase(),
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -349,9 +350,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     const SizedBox(height: 16),
                     
                     // User name
-                    const Text(
-                      'Your Name',
-                      style: TextStyle(
+                    Text(
+                      AuthService.currentUser?['name']?.toString() ?? 'Your Name',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -361,10 +362,19 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     
                     // User ID/Email
                     Text(
-                      '11221044',
+                      AuthService.currentUser?['email']?.toString() ?? '11221044',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
                         fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    // Role debug info
+                    Text(
+                      'Role: ${AuthService.userRole} | Type: ${AuthService.accountType}',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 11,
                       ),
                     ),
                   ],
@@ -386,52 +396,65 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   child: ListView(
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     children: [
-                      _buildExpandableSection(
-                        icon: Icons.business_center_outlined,
-                        title: 'Unit Directory',
-                        children: [
-                          _buildSubMenuItem(
-                            icon: Icons.folder_outlined,
-                            title: 'User Management',
-                            onTap: () {
-                              Navigator.pop(context);
-                              // Already on this page, no navigation needed
-                            },
-                          ),
-                          _buildSubMenuItem(
-                            icon: Icons.business_outlined,
-                            title: 'Employee Directory',
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const EmployeeDirectoryPage(),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                      _buildExpandableSection(
-                        icon: Icons.quiz_outlined,
-                        title: 'Questionnaire',
-                        children: [
-                          _buildSubMenuItem(
-                            icon: Icons.poll_outlined,
-                            title: 'Survey Management',
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const SurveyManagementPage(),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
+                      // Only show Unit Directory for admins
+                      if (AuthService.isAdmin)
+                        _buildExpandableSection(
+                          icon: Icons.business_center_outlined,
+                          title: 'Unit Directory',
+                          children: [
+                            _buildSubMenuItem(
+                              icon: Icons.folder_outlined,
+                              title: 'User Management',
+                              onTap: () {
+                                Navigator.pop(context);
+                                // Already on this page, no navigation needed
+                              },
+                            ),
+                            _buildSubMenuItem(
+                              icon: Icons.business_outlined,
+                              title: 'Employee Directory',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const EmployeeDirectoryPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      // Show Questionnaire section for employees (admin, surveyor, team_prodi)
+                      if (AuthService.isAdmin || AuthService.isSurveyor || AuthService.isTeamProdi)
+                        _buildExpandableSection(
+                          icon: Icons.quiz_outlined,
+                          title: 'Questionnaire',
+                          children: [
+                            _buildSubMenuItem(
+                              icon: Icons.poll_outlined,
+                              title: 'Survey Management',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const SurveyManagementPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      // Users (alumni) only see Take Questionnaire (no Survey Management)
+                      if (AuthService.isUser)
+                        _buildDrawerItem(
+                          icon: Icons.assignment_outlined,
+                          title: 'Take Questionnaire',
+                          onTap: () {
+                            Navigator.pop(context);
+                          },
+                        ),
                       const SizedBox(height: 20),
                       _buildDrawerItem(
                         icon: Icons.logout,
@@ -633,49 +656,76 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   ),
           ),
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), // REMOVED BOTTOM PADDING
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.white,
-              border: Border(top: BorderSide(color: Colors.grey.shade200)),
+              border: Border(top: BorderSide(color: Colors.grey.shade300)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                OutlinedButton(
-                  onPressed: currentPage > 1 ? () => setState(() => currentPage--) : null,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    side: BorderSide(color: Colors.grey.shade300),
-                  ),
-                  child: const Text('Previous', style: TextStyle(fontSize: 12)),
-                ),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    DropdownButton<int>(
-                      value: itemsPerPage,
-                      underline: Container(),
-                      style: const TextStyle(fontSize: 12, color: Colors.black87),
-                      items: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => DropdownMenuItem(value: value, child: Text('$value'))).toList(),
-                      onChanged: (value) {
-                        if (value != null) {
-                          setState(() {
-                            itemsPerPage = value;
-                            currentPage = 1;
-                          });
-                        }
-                      },
+                    const Text('Show ', style: TextStyle(fontSize: 12)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: DropdownButton<int>(
+                        value: itemsPerPage,
+                        underline: const SizedBox(),
+                        isDense: true,
+                        items: [1, 5, 10, 25, 50, 100].map((int value) {
+                          return DropdownMenuItem<int>(
+                            value: value,
+                            child: Text(value.toString(), style: const TextStyle(fontSize: 12)),
+                          );
+                        }).toList(),
+                        onChanged: (int? newValue) {
+                          if (newValue != null) {
+                            setState(() {
+                              itemsPerPage = newValue;
+                              currentPage = 1; // Reset to first page
+                            });
+                          }
+                        },
+                      ),
                     ),
-                    const SizedBox(width: 8),
-                    Text('| Page $currentPage of $totalPages', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                    const Text(' entries', style: TextStyle(fontSize: 12)),
                   ],
                 ),
-                OutlinedButton(
-                  onPressed: currentPage < totalPages ? () => setState(() => currentPage++) : null,
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    side: BorderSide(color: Colors.grey.shade300),
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          '${((currentPage - 1) * itemsPerPage) + 1}-${(currentPage * itemsPerPage).clamp(0, filteredUsers.length)} of ${filteredUsers.length}', 
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left),
+                        onPressed: currentPage > 1 ? () => setState(() => currentPage--) : null,
+                        iconSize: 18,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        padding: const EdgeInsets.all(4),
+                      ),
+                      Text('$currentPage/$totalPages', style: const TextStyle(fontSize: 12)),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right),
+                        onPressed: currentPage < totalPages ? () => setState(() => currentPage++) : null,
+                        iconSize: 18,
+                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                        padding: const EdgeInsets.all(4),
+                      ),
+                    ],
                   ),
-                  child: const Text('Next', style: TextStyle(fontSize: 12)),
                 ),
               ],
             ),

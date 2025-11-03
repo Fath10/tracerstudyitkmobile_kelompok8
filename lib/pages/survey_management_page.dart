@@ -201,7 +201,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                               title: 'User Management',
                               onTap: () {
                                 Navigator.pop(context);
-                                Navigator.push(
+                                Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) => const UserManagementPage(),
@@ -214,7 +214,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                               title: 'Employee Directory',
                               onTap: () {
                                 Navigator.pop(context);
-                                Navigator.push(
+                                Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) => const EmployeeDirectoryPage(),
@@ -350,6 +350,228 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Live Questionnaires Section (for tracking user responses)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Live Questionnaires',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.green[50],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.green[200]!),
+                          ),
+                          child: Text(
+                            'Accepting Responses',
+                            style: TextStyle(
+                              color: Colors.green[700],
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'These questionnaires are currently accepting responses',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Active Questionnaires Grid (only show live surveys - both default and custom)
+                    Builder(
+                      builder: (context) {
+                        // Combine default surveys and custom surveys, then filter for live ones
+                        final allSurveys = SurveyStorage.getAllAvailableSurveys();
+                        final liveSurveys = allSurveys
+                            .where((survey) => survey['isLive'] == true)
+                            .toList();
+                        
+                        if (liveSurveys.isEmpty) {
+                          return Container(
+                            height: 120,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey[300]!),
+                            ),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.notifications_off_outlined,
+                                    size: 32,
+                                    color: Colors.grey[400],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'No live questionnaires',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Enable "Live Questionnaire" in survey settings',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey[500],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+                        
+                        return SizedBox(
+                          height: 180,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: liveSurveys.length,
+                            itemBuilder: (context, index) {
+                              final survey = liveSurveys[index];
+                          
+                              return Container(
+                                width: 160,
+                                margin: const EdgeInsets.only(right: 12),
+                                child: Card(
+                                  elevation: 2,
+                                  color: Colors.green[50],
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    side: BorderSide(color: Colors.green[200]!, width: 1),
+                                  ),
+                                  child: InkWell(
+                                    onTap: () {
+                                      // Navigate to edit page to view responses
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => EditSurveyPage(
+                                            survey: survey,
+                                          ),
+                                        ),
+                                      ).then((_) => setState(() {}));
+                                    },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(14),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Icon with response indicator
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Container(
+                                            width: 40,
+                                            height: 40,
+                                            decoration: BoxDecoration(
+                                              color: Colors.green[100],
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: Icon(
+                                              Icons.assignment_outlined,
+                                              size: 22,
+                                              color: Colors.green[700],
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.green[700],
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: const Text(
+                                              'LIVE',
+                                              style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const Spacer(),
+                                      
+                                      // Title
+                                      Text(
+                                        survey['name'] ?? 'Untitled Survey',
+                                        style: const TextStyle(
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      
+                                      // Description
+                                      Expanded(
+                                        child: Text(
+                                          survey['description'] ?? 'No description',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey[600],
+                                          ),
+                                          maxLines: 4,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      
+                                      // Tap indicator
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.analytics_outlined,
+                                            size: 14,
+                                            color: Colors.green[600],
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'Tap to view responses',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.green[700],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                            },
+                          ),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 24),
+
                     // Custom Surveys Section (if any exist)
                     if (customSurveys.isNotEmpty) ...[
                       Row(
@@ -747,9 +969,12 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
     // Convert survey data to match EditSurveyPage expectations
     final surveyData = {
       'name': survey['title'] ?? survey['name'] ?? 'Untitled Survey',
+      'title': survey['title'] ?? survey['name'] ?? 'Untitled Survey',
       'description': survey['subtitle'] ?? survey['description'] ?? 'No description',
       'questions': survey['questions'], // Pass the questions data
       'isDefault': survey['isDefault'] ?? false,
+      'isTemplate': !isCustom && survey['isDefault'] != true, // Mark as template if not custom and not default
+      'isLive': survey['isLive'] ?? false, // Pass live status
     };
     
     final result = await Navigator.push(
@@ -765,13 +990,19 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
         setState(() {
           customSurveys = SurveyStorage.customSurveys;
         });
+      } else if (result['isDefault'] == true) {
+        // For default surveys, update in storage
+        SurveyStorage.updateDefaultSurvey(result['name'], result);
+        setState(() {});
       } else {
-        // For template surveys, update the local display data
-        // Note: Template surveys don't get saved to storage, they're just for display
+        // For template surveys, update in storage (not just local)
+        SurveyStorage.updateTemplateSurvey(survey['title'] ?? survey['name'], result);
         setState(() {
+          // Update local display data
           templateSurveys[index]['title'] = result['name'];
           templateSurveys[index]['subtitle'] = result['description'] ?? templateSurveys[index]['subtitle'];
-          templateSurveys[index]['questions'] = result['questions']; // Update questions
+          templateSurveys[index]['questions'] = result['questions'];
+          templateSurveys[index]['isLive'] = result['isLive'] ?? false;
         });
       }
       

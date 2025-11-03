@@ -5,6 +5,7 @@ import 'user_management_page.dart';
 import 'survey_management_page.dart';
 import 'take_questionnaire_page.dart';
 import '../services/survey_storage.dart';
+import '../services/auth_service.dart';
 
 class HomePage extends StatefulWidget {
   final Map<String, dynamic>? employee;
@@ -17,6 +18,11 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  Future<void> _refreshData() async {
+    // Refresh the page by rebuilding
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -157,6 +163,15 @@ class _HomePageState extends State<HomePage> {
                         fontSize: 14,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    // Role debug info
+                    Text(
+                      'Role: ${AuthService.userRole} | Type: ${AuthService.accountType}',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 11,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -176,65 +191,56 @@ class _HomePageState extends State<HomePage> {
                   child: ListView(
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     children: [
-                      _buildExpandableSection(
-                        icon: Icons.business_center_outlined,
-                        title: 'Unit Directory',
-                        children: [
-                          _buildSubMenuItem(
-                            icon: Icons.folder_outlined,
-                            title: 'User Management',
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const UserManagementPage(),
-                                ),
-                              );
-                            },
-                          ),
-                          _buildSubMenuItem(
-                            icon: Icons.business_outlined,
-                            title: 'Employee Directory',
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const EmployeeDirectoryPage(),
-                                ),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
+                      // Only show Unit Directory for admins
+                      if (AuthService.isAdmin)
                         _buildExpandableSection(
-                        icon: Icons.quiz_outlined,
-                        title: 'Questionnaire',
-                        children: [
-                          _buildSubMenuItem(
-                            icon: Icons.poll_outlined,
-                            title: 'Survey Management',
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => SurveyManagementPage(employee: widget.employee),
-                                ),
-                              );
-                            },
-                          ),
-                          _buildSubMenuItem(
-                            icon: Icons.assignment_outlined,
-                            title: 'Take Questionnaire',
-                            onTap: () {
-                              Navigator.pop(context);
-                              _showAvailableSurveys();
-                            },
-                          ),
-                        ],
-                      ),
+                          icon: Icons.business_center_outlined,
+                          title: 'Unit Directory',
+                          children: [
+                            _buildSubMenuItem(
+                              icon: Icons.folder_outlined,
+                              title: 'User Management',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const UserManagementPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                            _buildSubMenuItem(
+                              icon: Icons.business_outlined,
+                              title: 'Employee Directory',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const EmployeeDirectoryPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      // Show Questionnaire section for employees (admin, surveyor, team_prodi)
+                      if (AuthService.isAdmin || AuthService.isSurveyor || AuthService.isTeamProdi)
+                        _buildDrawerItem(
+                          icon: Icons.poll_outlined,
+                          title: 'Survey Management',
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => SurveyManagementPage(employee: widget.employee),
+                              ),
+                            );
+                          },
+                        ),
+                      // Users (alumni) - no menu items except logout (questionnaires shown on home page)
                       const SizedBox(height: 20),
                       _buildDrawerItem(
                         icon: Icons.logout,
@@ -255,33 +261,175 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    // Show questionnaire cards for all roles
+    return _buildQuestionnaireCards();
+  }
+
+  Widget _buildQuestionnaireCards() {
+    // Only show live surveys on home page
+    final allSurveys = SurveyStorage.getAllAvailableSurveys();
+    // Filter to only show surveys where isLive is explicitly true
+    final availableSurveys = allSurveys.where((survey) {
+      final isLive = survey['isLive'];
+      return isLive == true; // Explicitly check for boolean true
+    }).toList();
+    
+    return RefreshIndicator(
+      onRefresh: _refreshData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              Icons.home_outlined,
-              size: 100,
-              color: Colors.grey[300],
-            ),
-            const SizedBox(height: 20),
             Text(
-              'Welcome to Tracer Study ITK',
+              'Available Questionnaires',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.grey[700],
+                color: Colors.grey[800],
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             Text(
-              'Track alumni career journey',
+              'Select a questionnaire to complete',
               style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[500],
+                fontSize: 13,
+                color: Colors.grey[600],
               ),
             ),
+            const SizedBox(height: 20),
+            availableSurveys.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 60),
+                        Icon(
+                          Icons.assignment_outlined,
+                          size: 80,
+                          color: Colors.grey[300],
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No questionnaires available',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 0.85,
+                    ),
+                    itemCount: availableSurveys.length,
+                    itemBuilder: (context, index) {
+                      final survey = availableSurveys[index];
+                      return _buildQuestionnaireCard(survey);
+                    },
+                  ),
           ],
+        ),
+      ),
+      ),
+    );
+  }
+
+  Widget _buildQuestionnaireCard(Map<String, dynamic> survey) {
+    return Card(
+      elevation: 2,
+      color: Colors.blue[50],
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.blue[200]!, width: 1),
+      ),
+      child: InkWell(
+        onTap: () => _takeSurvey(survey),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Icon
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.blue[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.assignment_outlined,
+                  size: 22,
+                  color: Colors.blue[700],
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              // Title
+              Text(
+                survey['name'] ?? 'Untitled Survey',
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6),
+              
+              // Description
+              Expanded(
+                child: Text(
+                  survey['description'] ?? 'No description',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              
+              // Tap indicator
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.touch_app,
+                    size: 14,
+                    color: Colors.blue[400],
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Tap to take',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.blue[600],
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -365,117 +513,6 @@ class _HomePageState extends State<HomePage> {
         onTap: onTap,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-        ),
-      ),
-    );
-  }
-
-  void _showAvailableSurveys() {
-    // Get all available surveys (default + custom)
-    final availableSurveys = SurveyStorage.getAllAvailableSurveys();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-        ),
-        child: Column(
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  const Text(
-                    'Available Questionnaires',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-            ),
-            
-            // Survey list
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: availableSurveys.length,
-                itemBuilder: (context, index) {
-                  final survey = availableSurveys[index];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      leading: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.blue[100],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.assignment_outlined,
-                          color: Colors.blue[600],
-                        ),
-                      ),
-                      title: Text(
-                        survey['name'],
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      subtitle: Text(
-                        survey['description'],
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 12,
-                        ),
-                      ),
-                      trailing: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _takeSurvey(survey);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue[600],
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                        child: const Text('Take'),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
         ),
       ),
     );

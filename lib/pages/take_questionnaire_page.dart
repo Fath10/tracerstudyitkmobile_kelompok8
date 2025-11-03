@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'home_page.dart';
 import '../services/survey_storage.dart';
+import '../database/database_helper.dart';
+import '../services/auth_service.dart';
 
 class TakeQuestionnairePage extends StatefulWidget {
   final Map<String, dynamic> survey;
@@ -584,6 +587,18 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
       return;
     }
 
+    // Check if survey is live (accepting responses)
+    final isLive = widget.survey['isLive'] ?? false;
+    if (!isLive) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This survey is not currently accepting responses'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     // Check if all questions are answered
     for (int i = 0; i < _surveyQuestions.length; i++) {
       final questionId = _surveyQuestions[i]['id'] ?? i;
@@ -603,8 +618,27 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
     });
 
     try {
-      // Simulate submission (replace with actual database save)
-      await Future.delayed(const Duration(seconds: 2));
+      // Prepare answers in a serializable format
+      final Map<String, dynamic> serializableAnswers = {};
+      _answers.forEach((key, value) {
+        // Convert each answer to a simple string representation
+        if (value is List) {
+          serializableAnswers[key.toString()] = value.join(', ');
+        } else {
+          serializableAnswers[key.toString()] = value.toString();
+        }
+      });
+      
+      // Save response to database
+      final response = {
+        'surveyName': widget.survey['name'],
+        'userId': AuthService.currentUser?['id'],
+        'userEmail': AuthService.currentUser?['email'] ?? 'unknown',
+        'userName': AuthService.currentUser?['name'] ?? 'Unknown User',
+        'answers': jsonEncode(serializableAnswers), // Convert to JSON string
+      };
+      
+      await DatabaseHelper.instance.saveResponse(response);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
