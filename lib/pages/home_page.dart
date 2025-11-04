@@ -227,18 +227,24 @@ class _HomePageState extends State<HomePage> {
                         ),
                       // Show Questionnaire section for employees (admin, surveyor, team_prodi)
                       if (AuthService.isAdmin || AuthService.isSurveyor || AuthService.isTeamProdi)
-                        _buildDrawerItem(
+                        _buildExpandableSection(
                           icon: Icons.poll_outlined,
-                          title: 'Survey Management',
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => SurveyManagementPage(employee: widget.employee),
-                              ),
-                            );
-                          },
+                          title: 'Questionnaire',
+                          children: [
+                            _buildSubMenuItem(
+                              icon: Icons.dashboard_outlined,
+                              title: 'Survey Management',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => SurveyManagementPage(employee: widget.employee),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       // Users (alumni) - no menu items except logout (questionnaires shown on home page)
                       const SizedBox(height: 20),

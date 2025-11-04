@@ -487,21 +487,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 color: Colors.white,
                 border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('User Management', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-                  ElevatedButton(
-                    onPressed: _showAddUserDialog,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0066CC),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                    ),
-                    child: const Text('Add', style: TextStyle(fontSize: 13)),
-                  ),
-                ],
+              child: const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('User Management', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
               ),
             ),
           Container(
@@ -539,6 +527,21 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         currentPage = 1;
                       });
                     },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Add User Button (+ Icon)
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0066CC),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: IconButton(
+                    onPressed: _showAddUserDialog,
+                    icon: const Icon(Icons.add, color: Colors.white, size: 24),
+                    tooltip: 'Add User',
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(),
                   ),
                 ),
                 const SizedBox(width: 8),

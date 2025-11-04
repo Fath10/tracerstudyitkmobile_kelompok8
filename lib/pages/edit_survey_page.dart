@@ -16,12 +16,14 @@ class EditSurveyPage extends StatefulWidget {
 class _EditSurveyPageState extends State<EditSurveyPage> with SingleTickerProviderStateMixin {
   final TextEditingController _surveyNameController = TextEditingController();
   final TextEditingController _surveyDescriptionController = TextEditingController();
+  final TextEditingController _sectionNameController = TextEditingController();
   
   List<Map<String, dynamic>> questions = [];
   int _questionCounter = 1;
   int? _selectedQuestionIndex;
   late TabController _tabController;
   bool _isLive = false; // Track if survey is live for response tracking
+  bool _isEditingSectionName = false; // Track section name editing mode
   
   // Controllers for questions to prevent text reversal
   final Map<String, TextEditingController> _questionControllers = {};
@@ -36,6 +38,7 @@ class _EditSurveyPageState extends State<EditSurveyPage> with SingleTickerProvid
     _tabController = TabController(length: 3, vsync: this);
     _surveyNameController.text = widget.survey['name'] ?? 'Survey 1';
     _surveyDescriptionController.text = widget.survey['description'] ?? 'Survey description';
+    _sectionNameController.text = 'Section 1'; // Default section name
     _isLive = widget.survey['isLive'] ?? false; // Initialize from survey data
     
     // Initialize questions from survey data or use default questions
@@ -648,6 +651,67 @@ class _EditSurveyPageState extends State<EditSurveyPage> with SingleTickerProvid
                       borderSide: BorderSide(color: Color(0xFF1A73E8), width: 2),
                     ),
                   ),
+                ),
+                
+                const SizedBox(height: 24),
+                const Divider(),
+                const SizedBox(height: 16),
+                
+                // Section Name with Edit Icon
+                Row(
+                  children: [
+                    Expanded(
+                      child: _isEditingSectionName
+                          ? TextField(
+                              controller: _sectionNameController,
+                              autofocus: true,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Section name',
+                                hintStyle: TextStyle(color: Colors.grey[400]),
+                                border: InputBorder.none,
+                                enabledBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(color: Colors.grey[300]!),
+                                ),
+                                focusedBorder: const UnderlineInputBorder(
+                                  borderSide: BorderSide(color: Color(0xFF1A73E8), width: 2),
+                                ),
+                              ),
+                              onSubmitted: (value) {
+                                setState(() {
+                                  _isEditingSectionName = false;
+                                });
+                              },
+                            )
+                          : Text(
+                              _sectionNameController.text.isEmpty 
+                                  ? 'Section 1' 
+                                  : _sectionNameController.text,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                            ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        _isEditingSectionName ? Icons.check : Icons.edit,
+                        color: const Color(0xFF1A73E8),
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _isEditingSectionName = !_isEditingSectionName;
+                        });
+                      },
+                      tooltip: _isEditingSectionName ? 'Save section name' : 'Edit section name',
+                    ),
+                  ],
                 ),
               ],
             ),

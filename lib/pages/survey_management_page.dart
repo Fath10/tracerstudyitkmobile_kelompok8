@@ -29,6 +29,29 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
     {'title': 'Environmental Engineering Survey', 'subtitle': 'Environmental sector career survey'},
     {'title': 'Food Technology Survey', 'subtitle': 'Food industry career assessment'},
   ];
+  
+  // Section management
+  List<Map<String, dynamic>> customSections = [];
+  String liveSectionTitle = 'Live Questionnaires';
+  String templateSectionTitle = 'Template';
+  bool isEditingLiveSection = false;
+  bool isEditingTemplateSection = false;
+  final TextEditingController _liveSectionController = TextEditingController();
+  final TextEditingController _templateSectionController = TextEditingController();
+  
+  @override
+  void initState() {
+    super.initState();
+    _liveSectionController.text = liveSectionTitle;
+    _templateSectionController.text = templateSectionTitle;
+  }
+  
+  @override
+  void dispose() {
+    _liveSectionController.dispose();
+    _templateSectionController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -276,68 +299,74 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                   ),
                   const SizedBox(height: 16),
                   
-                  // Search Bar
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey[300]!),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.search, color: Colors.grey[500], size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextField(
-                            decoration: InputDecoration(
-                              hintText: 'Search surveys...',
-                              hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                            onChanged: (value) {
-                              // TODO: Implement search functionality
-                            },
+                  // Search Bar with Add Button
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.search, color: Colors.grey[500], size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  decoration: InputDecoration(
+                                    hintText: 'Search surveys...',
+                                    hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                                  ),
+                                  onChanged: (value) {
+                                    // TODO: Implement search functionality
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Create Button
-                  ElevatedButton(
-                    onPressed: () async {
-                      final result = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const AddSurveyPage(),
+                      ),
+                      const SizedBox(width: 12),
+                      // Create Button (+ Icon)
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue[600],
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                      );
-                      
-                      if (result != null) {
-                        SurveyStorage.addSurvey(result);
-                        setState(() {
-                          customSurveys = SurveyStorage.customSurveys;
-                        });
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Survey created successfully!'),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        }
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[600],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    ),
-                    child: const Text('Create Survey'),
+                        child: IconButton(
+                          onPressed: () async {
+                            final result = await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const AddSurveyPage(),
+                              ),
+                            );
+                            
+                            if (result != null) {
+                              SurveyStorage.addSurvey(result);
+                              setState(() {
+                                customSurveys = SurveyStorage.customSurveys;
+                              });
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Survey created successfully!'),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          icon: const Icon(Icons.add, color: Colors.white, size: 24),
+                          tooltip: 'Create Survey',
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -354,12 +383,57 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Live Questionnaires',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: isEditingLiveSection
+                                    ? TextField(
+                                        controller: _liveSectionController,
+                                        autofocus: true,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
+                                        decoration: const InputDecoration(
+                                          border: UnderlineInputBorder(),
+                                          isDense: true,
+                                          contentPadding: EdgeInsets.symmetric(vertical: 4),
+                                        ),
+                                        onSubmitted: (value) {
+                                          setState(() {
+                                            liveSectionTitle = value;
+                                            isEditingLiveSection = false;
+                                          });
+                                        },
+                                      )
+                                    : Text(
+                                        liveSectionTitle,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                              ),
+                              const SizedBox(width: 8),
+                              InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    if (isEditingLiveSection) {
+                                      liveSectionTitle = _liveSectionController.text;
+                                    }
+                                    isEditingLiveSection = !isEditingLiveSection;
+                                  });
+                                },
+                                child: Icon(
+                                  isEditingLiveSection ? Icons.check : Icons.edit,
+                                  size: 18,
+                                  color: Colors.blue[600],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         Container(
@@ -728,12 +802,57 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'Template',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: isEditingTemplateSection
+                                    ? TextField(
+                                        controller: _templateSectionController,
+                                        autofocus: true,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
+                                        decoration: const InputDecoration(
+                                          border: UnderlineInputBorder(),
+                                          isDense: true,
+                                          contentPadding: EdgeInsets.symmetric(vertical: 4),
+                                        ),
+                                        onSubmitted: (value) {
+                                          setState(() {
+                                            templateSectionTitle = value;
+                                            isEditingTemplateSection = false;
+                                          });
+                                        },
+                                      )
+                                    : Text(
+                                        templateSectionTitle,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                              ),
+                              const SizedBox(width: 8),
+                              InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    if (isEditingTemplateSection) {
+                                      templateSectionTitle = _templateSectionController.text;
+                                    }
+                                    isEditingTemplateSection = !isEditingTemplateSection;
+                                  });
+                                },
+                                child: Icon(
+                                  isEditingTemplateSection ? Icons.check : Icons.edit,
+                                  size: 18,
+                                  color: Colors.blue[600],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         TextButton(
@@ -868,6 +987,181 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                             ),
                           );
                         },
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+                    
+                    // Custom Sections (dynamically created by user)
+                    ...customSections.map((section) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Custom Section Header
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        section['title'] as String,
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Icon(
+                                      Icons.edit,
+                                      size: 18,
+                                      color: Colors.blue[600],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                                onPressed: () {
+                                  setState(() {
+                                    customSections.remove(section);
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Section "${section['title']}" deleted'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                },
+                                tooltip: 'Delete section',
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          
+                          // Custom Section Surveys
+                          SizedBox(
+                            height: 140,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: (section['surveys'] as List).length,
+                              itemBuilder: (context, index) {
+                                final survey = (section['surveys'] as List)[index];
+                                
+                                return Container(
+                                  width: 120,
+                                  margin: const EdgeInsets.only(right: 12),
+                                  child: Card(
+                                    elevation: 1,
+                                    color: Colors.blue[50],
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: InkWell(
+                                      onTap: () {
+                                        _takeSurvey(survey);
+                                      },
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(12),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Container(
+                                                  width: 32,
+                                                  height: 32,
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.white,
+                                                    borderRadius: BorderRadius.circular(6),
+                                                  ),
+                                                  child: Icon(
+                                                    Icons.description_outlined,
+                                                    size: 18,
+                                                    color: Colors.blue[600],
+                                                  ),
+                                                ),
+                                                PopupMenuButton<String>(
+                                                  onSelected: (value) {
+                                                    if (value == 'delete') {
+                                                      setState(() {
+                                                        (section['surveys'] as List).removeAt(index);
+                                                      });
+                                                    }
+                                                  },
+                                                  icon: Icon(
+                                                    Icons.more_vert,
+                                                    size: 16,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                  itemBuilder: (context) => [
+                                                    const PopupMenuItem(
+                                                      value: 'delete',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                                                          SizedBox(width: 8),
+                                                          Text('Delete'),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                            const Spacer(),
+                                            Text(
+                                              survey['title'] as String,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 12,
+                                                color: Colors.black87,
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              survey['subtitle'] as String,
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                color: Colors.grey[700],
+                                              ),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+                      );
+                    }).toList(),
+
+                    const SizedBox(height: 8),
+                    
+                    // Add New Section Button
+                    Center(
+                      child: OutlinedButton.icon(
+                        onPressed: _showAddSectionDialog,
+                        icon: const Icon(Icons.add, size: 20),
+                        label: const Text('Add New Section'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.blue[600],
+                          side: BorderSide(color: Colors.blue[600]!),
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        ),
                       ),
                     ),
 
@@ -1077,6 +1371,65 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
           employee: widget.employee,
         ),
       ),
+    );
+  }
+  
+  void _showAddSectionDialog() {
+    final TextEditingController sectionNameController = TextEditingController();
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Add New Section'),
+          content: TextField(
+            controller: sectionNameController,
+            decoration: const InputDecoration(
+              labelText: 'Section Name',
+              hintText: 'Enter section name',
+              border: OutlineInputBorder(),
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (sectionNameController.text.trim().isNotEmpty) {
+                  setState(() {
+                    customSections.add({
+                      'title': sectionNameController.text.trim(),
+                      'surveys': [
+                        {
+                          'title': 'Sample Survey',
+                          'subtitle': 'Template questionnaire for ${sectionNameController.text.trim()}',
+                          'questions': SurveyStorage.getDefaultQuestions(),
+                          'isTemplate': true,
+                          'isLive': false,
+                        }
+                      ],
+                    });
+                  });
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Section "${sectionNameController.text.trim()}" created with 1 sample survey!'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[600],
+              ),
+              child: const Text('Create'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

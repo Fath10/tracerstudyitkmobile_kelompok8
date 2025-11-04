@@ -365,18 +365,6 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () => _navigateToEmployeeEdit(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0066CC),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                      minimumSize: const Size(0, 32),
-                    ),
-                    child: const Text('Add', style: TextStyle(fontSize: 12)),
-                  ),
                 ],
               ),
             ),
@@ -409,6 +397,21 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                           currentPage = 1;
                         });
                       },
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  // Add Employee Button (+ Icon)
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0066CC),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: IconButton(
+                      onPressed: () => _navigateToEmployeeEdit(),
+                      icon: const Icon(Icons.add, color: Colors.white, size: 20),
+                      tooltip: 'Add Employee',
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                     ),
                   ),
                   const SizedBox(width: 4),
