@@ -302,6 +302,11 @@ class DatabaseHelper {
     );
   }
 
+  Future<List<Map<String, dynamic>>> getAllResponses() async {
+    final db = await instance.database;
+    return await db.query('responses', orderBy: 'submittedAt DESC');
+  }
+
   // Universal login method (checks both employees and users)
   Future<Map<String, dynamic>?> universalLogin(String email, String password) async {
     // First check employees table

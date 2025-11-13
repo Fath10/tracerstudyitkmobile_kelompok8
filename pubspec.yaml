@@ -43,6 +43,9 @@ dependencies:
   
   # SQLite database
   sqflite: ^2.3.0
+  
+  # Charts for dashboard visualization
+  fl_chart: ^0.66.0
 
 dev_dependencies:
   flutter_test:

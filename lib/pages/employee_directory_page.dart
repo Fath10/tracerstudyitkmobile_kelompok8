@@ -3,8 +3,12 @@ import 'employee_edit_page.dart';
 import '../database/database_helper.dart';
 import 'user_management_page.dart';
 import 'login_page.dart';
+import 'home_page.dart';
 import 'survey_management_page.dart';
+import 'take_questionnaire_page.dart';
+import 'questionnaire_list_page.dart';
 import '../services/auth_service.dart';
+import '../services/survey_storage.dart';
 
 class EmployeeDirectoryPage extends StatefulWidget {
   const EmployeeDirectoryPage({super.key});
@@ -31,7 +35,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     setState(() {
       isLoading = true;
     });
-    
+
     try {
       final data = await DatabaseHelper.instance.getAllEmployees();
       setState(() {
@@ -80,7 +84,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
         builder: (context) => EmployeeEditPage(employee: employee),
       ),
     );
-    
+
     // Reload if changes were made
     if (result == true) {
       _loadEmployees();
@@ -116,7 +120,11 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                     color: Colors.blue[700],
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.school, color: Colors.white, size: 16),
+                  child: const Icon(
+                    Icons.school,
+                    color: Colors.white,
+                    size: 16,
+                  ),
                 );
               },
             ),
@@ -137,10 +145,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                   ),
                   Text(
                     'Sistem Tracking Lulusan',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 9,
-                    ),
+                    style: TextStyle(color: Colors.grey[600], fontSize: 9),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
@@ -150,7 +155,11 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.black87, size: 20),
+            icon: const Icon(
+              Icons.notifications_outlined,
+              color: Colors.black87,
+              size: 20,
+            ),
             onPressed: () {},
             padding: const EdgeInsets.all(8),
             constraints: const BoxConstraints(),
@@ -171,10 +180,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Colors.blue[400]!,
-                Colors.blue[600]!,
-              ],
+              colors: [Colors.blue[400]!, Colors.blue[600]!],
             ),
           ),
           child: Column(
@@ -192,10 +198,13 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                   ),
                 ),
               ),
-              
+
               // User profile section
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
                 child: Column(
                   children: [
                     // Avatar
@@ -209,7 +218,9 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                       ),
                       child: Center(
                         child: Text(
-                          (AuthService.currentUser?['name']?.toString() ?? 'U').substring(0, 1).toUpperCase(),
+                          (AuthService.currentUser?['name']?.toString() ?? 'U')
+                              .substring(0, 1)
+                              .toUpperCase(),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 28,
@@ -219,10 +230,11 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // User name
                     Text(
-                      AuthService.currentUser?['name']?.toString() ?? 'Your Name',
+                      AuthService.currentUser?['name']?.toString() ??
+                          'Your Name',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 20,
@@ -230,10 +242,11 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    
+
                     // User ID/Email
                     Text(
-                      AuthService.currentUser?['email']?.toString() ?? '11221044',
+                      AuthService.currentUser?['email']?.toString() ??
+                          '11221044',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
                         fontSize: 14,
@@ -251,9 +264,9 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 20),
-              
+
               // Menu items
               Expanded(
                 child: Container(
@@ -267,6 +280,24 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                   child: ListView(
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     children: [
+                      // Dashboard for employees (admin, surveyor, team_prodi)
+                      if (AuthService.isAdmin ||
+                          AuthService.isSurveyor ||
+                          AuthService.isTeamProdi)
+                        _buildDrawerItem(
+                          icon: Icons.dashboard,
+                          title: 'Dashboard',
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const HomePage(),
+                              ),
+                            );
+                          },
+                        ),
+
                       // Only show Unit Directory for admins
                       if (AuthService.isAdmin)
                         _buildExpandableSection(
@@ -281,7 +312,8 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const UserManagementPage(),
+                                    builder: (context) =>
+                                        const UserManagementPage(),
                                   ),
                                 );
                               },
@@ -297,7 +329,9 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                           ],
                         ),
                       // Show Questionnaire section for employees (admin, surveyor, team_prodi)
-                      if (AuthService.isAdmin || AuthService.isSurveyor || AuthService.isTeamProdi)
+                      if (AuthService.isAdmin ||
+                          AuthService.isSurveyor ||
+                          AuthService.isTeamProdi)
                         _buildExpandableSection(
                           icon: Icons.quiz_outlined,
                           title: 'Questionnaire',
@@ -310,22 +344,44 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const SurveyManagementPage(),
+                                    builder: (context) =>
+                                        const SurveyManagementPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                            _buildSubMenuItem(
+                              icon: Icons.assignment_outlined,
+                              title: 'Take Questionnaire',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const QuestionnaireListPage(),
                                   ),
                                 );
                               },
                             ),
                           ],
                         ),
-                      // Users (alumni) only see Take Questionnaire (no Survey Management)
+
+                      // Users (alumni) - show Take Questionnaire option
                       if (AuthService.isUser)
                         _buildDrawerItem(
                           icon: Icons.assignment_outlined,
                           title: 'Take Questionnaire',
                           onTap: () {
                             Navigator.pop(context);
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const HomePage(),
+                              ),
+                            );
                           },
                         ),
+
                       const SizedBox(height: 20),
                       _buildDrawerItem(
                         icon: Icons.logout,
@@ -333,7 +389,9 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                         onTap: () {
                           Navigator.pushAndRemoveUntil(
                             context,
-                            MaterialPageRoute(builder: (context) => const LoginPage()),
+                            MaterialPageRoute(
+                              builder: (context) => const LoginPage(),
+                            ),
                             (route) => false,
                           );
                         },
@@ -360,8 +418,12 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                 children: [
                   const Flexible(
                     child: Text(
-                      'Employee Directory', 
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87),
+                      'Employee Directory',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -380,14 +442,34 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                     child: TextField(
                       decoration: InputDecoration(
                         hintText: 'Search',
-                        hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                        prefixIcon: Icon(Icons.search, size: 18, color: Colors.grey.shade600),
-                        suffixIcon: Icon(Icons.mic, size: 18, color: Colors.grey.shade600),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
-                        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
+                        hintStyle: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade500,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          size: 18,
+                          color: Colors.grey.shade600,
+                        ),
+                        suffixIcon: Icon(
+                          Icons.mic,
+                          size: 18,
+                          color: Colors.grey.shade600,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(4),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(4),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
                         filled: true,
                         fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         isDense: true,
                       ),
                       style: const TextStyle(fontSize: 12),
@@ -408,24 +490,45 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                     ),
                     child: IconButton(
                       onPressed: () => _navigateToEmployeeEdit(),
-                      icon: const Icon(Icons.add, color: Colors.white, size: 20),
+                      icon: const Icon(
+                        Icons.add,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                       tooltip: 'Add Employee',
                       padding: const EdgeInsets.all(8),
-                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 4),
                   IconButton(
-                    icon: Icon(Icons.filter_list, color: Colors.grey.shade700, size: 20),
+                    icon: Icon(
+                      Icons.filter_list,
+                      color: Colors.grey.shade700,
+                      size: 20,
+                    ),
                     onPressed: () {},
                     padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    constraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 36,
+                    ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.view_column_outlined, color: Colors.grey.shade700, size: 20),
+                    icon: Icon(
+                      Icons.view_column_outlined,
+                      color: Colors.grey.shade700,
+                      size: 20,
+                    ),
                     onPressed: () {},
                     padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    constraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 36,
+                    ),
                   ),
                 ],
               ),
@@ -447,14 +550,30 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                             Container(
                               decoration: BoxDecoration(
                                 color: Colors.grey.shade100,
-                                border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                                border: Border(
+                                  bottom: BorderSide(
+                                    color: Colors.grey.shade300,
+                                  ),
+                                ),
                               ),
                               child: Row(
                                 children: [
-                                  Expanded(flex: 3, child: _buildHeaderCell('Name')),
-                                  Expanded(flex: 3, child: _buildHeaderCell('Email')),
-                                  Expanded(flex: 2, child: _buildHeaderCell('Access')),
-                                  SizedBox(width: 60, child: _buildHeaderCell('Actions')),
+                                  Expanded(
+                                    flex: 3,
+                                    child: _buildHeaderCell('Name'),
+                                  ),
+                                  Expanded(
+                                    flex: 3,
+                                    child: _buildHeaderCell('Email'),
+                                  ),
+                                  Expanded(
+                                    flex: 2,
+                                    child: _buildHeaderCell('Access'),
+                                  ),
+                                  SizedBox(
+                                    width: 60,
+                                    child: _buildHeaderCell('Actions'),
+                                  ),
                                 ],
                               ),
                             ),
@@ -463,11 +582,19 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                               Container(
                                 padding: const EdgeInsets.all(40),
                                 child: const Center(
-                                  child: Text('No employees found', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                                  child: Text(
+                                    'No employees found',
+                                    style: TextStyle(
+                                      color: Colors.grey,
+                                      fontSize: 14,
+                                    ),
+                                  ),
                                 ),
                               )
                             else
-                              ...paginatedEmployees.map((employee) => _buildEmployeeRow(employee)),
+                              ...paginatedEmployees.map(
+                                (employee) => _buildEmployeeRow(employee),
+                              ),
                           ],
                         ),
                       ),
@@ -500,7 +627,10 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                           items: [1, 5, 10, 25, 50, 100].map((int value) {
                             return DropdownMenuItem<int>(
                               value: value,
-                              child: Text(value.toString(), style: const TextStyle(fontSize: 12)),
+                              child: Text(
+                                value.toString(),
+                                style: const TextStyle(fontSize: 12),
+                              ),
                             );
                           }).toList(),
                           onChanged: (int? newValue) {
@@ -522,7 +652,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                       children: [
                         Flexible(
                           child: Text(
-                            '${((currentPage - 1) * itemsPerPage) + 1} - ${(currentPage * itemsPerPage).clamp(0, filteredEmployees.length)} of ${filteredEmployees.length}', 
+                            '${((currentPage - 1) * itemsPerPage) + 1} - ${(currentPage * itemsPerPage).clamp(0, filteredEmployees.length)} of ${filteredEmployees.length}',
                             style: const TextStyle(fontSize: 12),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -530,17 +660,30 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                         const SizedBox(width: 8),
                         IconButton(
                           icon: const Icon(Icons.chevron_left),
-                          onPressed: currentPage > 1 ? () => setState(() => currentPage--) : null,
+                          onPressed: currentPage > 1
+                              ? () => setState(() => currentPage--)
+                              : null,
                           iconSize: 18,
-                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          constraints: const BoxConstraints(
+                            minWidth: 32,
+                            minHeight: 32,
+                          ),
                           padding: const EdgeInsets.all(4),
                         ),
-                        Text('$currentPage / $totalPages', style: const TextStyle(fontSize: 12)),
+                        Text(
+                          '$currentPage / $totalPages',
+                          style: const TextStyle(fontSize: 12),
+                        ),
                         IconButton(
                           icon: const Icon(Icons.chevron_right),
-                          onPressed: currentPage < totalPages ? () => setState(() => currentPage++) : null,
+                          onPressed: currentPage < totalPages
+                              ? () => setState(() => currentPage++)
+                              : null,
                           iconSize: 18,
-                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          constraints: const BoxConstraints(
+                            minWidth: 32,
+                            minHeight: 32,
+                          ),
                           padding: const EdgeInsets.all(4),
                         ),
                       ],
@@ -558,7 +701,14 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
   Widget _buildHeaderCell(String title) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87)),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+      ),
     );
   }
 
@@ -568,7 +718,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     // Get role and format display
     final role = employee['role']?.toString() ?? 'surveyor';
     final prodi = employee['prodi']?.toString();
-    
+
     String accessDisplay = '';
     switch (role) {
       case 'admin':
@@ -605,14 +755,27 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                     ),
                     child: Center(
                       child: Text(
-                        name.split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join().toUpperCase(),
-                        style: TextStyle(color: Colors.blue[700], fontSize: 12, fontWeight: FontWeight.w600),
+                        name
+                            .split(' ')
+                            .map((e) => e.isNotEmpty ? e[0] : '')
+                            .take(2)
+                            .join()
+                            .toUpperCase(),
+                        style: TextStyle(
+                          color: Colors.blue[700],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(name, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      name,
+                      style: const TextStyle(fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
@@ -622,14 +785,22 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
             flex: 3,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: Text(email, style: const TextStyle(fontSize: 13, color: Colors.black87), overflow: TextOverflow.ellipsis),
+              child: Text(
+                email,
+                style: const TextStyle(fontSize: 13, color: Colors.black87),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
           Expanded(
             flex: 2,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: Text(accessDisplay, style: const TextStyle(fontSize: 13, color: Colors.black87), overflow: TextOverflow.ellipsis),
+              child: Text(
+                accessDisplay,
+                style: const TextStyle(fontSize: 13, color: Colors.black87),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
           SizedBox(
@@ -664,15 +835,10 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
         leading: Icon(icon, color: Colors.grey[700]),
         title: Text(
           title,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
         ),
         onTap: onTap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -692,15 +858,10 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
         leading: Icon(icon, color: Colors.grey[700]),
         title: Text(
           title,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
         ),
         children: children,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         collapsedShape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
@@ -719,14 +880,118 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
         leading: Icon(icon, color: Colors.grey[600], size: 20),
         title: Text(
           title,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-          ),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
         ),
         onTap: onTap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  void _showAvailableSurveys() {
+    final allSurveys = SurveyStorage.getAllAvailableSurveys();
+    final availableSurveys = allSurveys.where((survey) {
+      final isLive = survey['isLive'];
+      return isLive == true;
+    }).toList();
+
+    if (availableSurveys.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No questionnaires available at this time'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Available Questionnaires',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: availableSurveys.length,
+                itemBuilder: (context, index) {
+                  final survey = availableSurveys[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.assignment_outlined,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                      title: Text(
+                        survey['name'] ?? 'Untitled Survey',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        survey['description'] ?? 'No description',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                TakeQuestionnairePage(survey: survey),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -4,12 +4,14 @@ import 'login_page.dart';
 import 'user_management_page.dart';
 import 'survey_management_page.dart';
 import 'take_questionnaire_page.dart';
+import 'dashboard_page.dart';
+import 'questionnaire_list_page.dart';
 import '../services/survey_storage.dart';
 import '../services/auth_service.dart';
 
 class HomePage extends StatefulWidget {
   final Map<String, dynamic>? employee;
-  
+
   const HomePage({super.key, this.employee});
 
   @override
@@ -48,7 +50,11 @@ class _HomePageState extends State<HomePage> {
                     color: Colors.blue[700],
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.school, color: Colors.white, size: 20),
+                  child: const Icon(
+                    Icons.school,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 );
               },
             ),
@@ -67,10 +73,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 Text(
                   'Sistem Tracking Lulusan',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 10,
-                  ),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 10),
                 ),
               ],
             ),
@@ -78,7 +81,11 @@ class _HomePageState extends State<HomePage> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.black87, size: 22),
+            icon: const Icon(
+              Icons.notifications_outlined,
+              color: Colors.black87,
+              size: 22,
+            ),
             onPressed: () {},
           ),
           IconButton(
@@ -95,10 +102,7 @@ class _HomePageState extends State<HomePage> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Colors.blue[400]!,
-                Colors.blue[600]!,
-              ],
+              colors: [Colors.blue[400]!, Colors.blue[600]!],
             ),
           ),
           child: Column(
@@ -116,10 +120,13 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
               ),
-              
+
               // User profile section
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 20,
+                ),
                 child: Column(
                   children: [
                     // Avatar
@@ -133,7 +140,9 @@ class _HomePageState extends State<HomePage> {
                       ),
                       child: Center(
                         child: Text(
-                          (widget.employee?['name']?.toString() ?? 'User').substring(0, 1).toUpperCase(),
+                          (widget.employee?['name']?.toString() ?? 'User')
+                              .substring(0, 1)
+                              .toUpperCase(),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 28,
@@ -143,7 +152,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
+
                     // User name
                     Text(
                       widget.employee?['name']?.toString() ?? 'Your Name',
@@ -154,7 +163,7 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    
+
                     // User ID/Email
                     Text(
                       widget.employee?['email']?.toString() ?? '11221044',
@@ -175,9 +184,9 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 20),
-              
+
               // Menu items
               Expanded(
                 child: Container(
@@ -191,6 +200,19 @@ class _HomePageState extends State<HomePage> {
                   child: ListView(
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     children: [
+                      // Dashboard for employees (admin, surveyor, team_prodi)
+                      if (AuthService.isAdmin ||
+                          AuthService.isSurveyor ||
+                          AuthService.isTeamProdi)
+                        _buildDrawerItem(
+                          icon: Icons.dashboard,
+                          title: 'Dashboard',
+                          onTap: () {
+                            Navigator.pop(context);
+                            // Already on home page showing dashboard, just close drawer
+                          },
+                        ),
+
                       // Only show Unit Directory for admins
                       if (AuthService.isAdmin)
                         _buildExpandableSection(
@@ -205,7 +227,8 @@ class _HomePageState extends State<HomePage> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const UserManagementPage(),
+                                    builder: (context) =>
+                                        const UserManagementPage(),
                                   ),
                                 );
                               },
@@ -218,7 +241,8 @@ class _HomePageState extends State<HomePage> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => const EmployeeDirectoryPage(),
+                                    builder: (context) =>
+                                        const EmployeeDirectoryPage(),
                                   ),
                                 );
                               },
@@ -226,7 +250,9 @@ class _HomePageState extends State<HomePage> {
                           ],
                         ),
                       // Show Questionnaire section for employees (admin, surveyor, team_prodi)
-                      if (AuthService.isAdmin || AuthService.isSurveyor || AuthService.isTeamProdi)
+                      if (AuthService.isAdmin ||
+                          AuthService.isSurveyor ||
+                          AuthService.isTeamProdi)
                         _buildExpandableSection(
                           icon: Icons.poll_outlined,
                           title: 'Questionnaire',
@@ -239,14 +265,49 @@ class _HomePageState extends State<HomePage> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => SurveyManagementPage(employee: widget.employee),
+                                    builder: (context) => SurveyManagementPage(
+                                      employee: widget.employee,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            _buildSubMenuItem(
+                              icon: Icons.assignment_outlined,
+                              title: 'Take Questionnaire',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => QuestionnaireListPage(
+                                      employee: widget.employee,
+                                    ),
                                   ),
                                 );
                               },
                             ),
                           ],
                         ),
-                      // Users (alumni) - no menu items except logout (questionnaires shown on home page)
+
+                      // Users (alumni) - show Take Questionnaire option
+                      if (AuthService.isUser)
+                        _buildDrawerItem(
+                          icon: Icons.assignment_outlined,
+                          title: 'Take Questionnaire',
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => QuestionnaireListPage(
+                                  employee: widget.employee,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+
                       const SizedBox(height: 20),
                       _buildDrawerItem(
                         icon: Icons.logout,
@@ -254,7 +315,9 @@ class _HomePageState extends State<HomePage> {
                         onTap: () {
                           Navigator.pushAndRemoveUntil(
                             context,
-                            MaterialPageRoute(builder: (context) => const LoginPage()),
+                            MaterialPageRoute(
+                              builder: (context) => const LoginPage(),
+                            ),
                             (route) => false,
                           );
                         },
@@ -272,170 +335,119 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildBody() {
-    // Show questionnaire cards for all roles
-    return _buildQuestionnaireCards();
+    // Show dashboard for employees (admin, surveyor, team_prodi)
+    if (AuthService.isAdmin ||
+        AuthService.isSurveyor ||
+        AuthService.isTeamProdi) {
+      return Column(
+        children: [
+          // Dashboard Section
+          const Expanded(child: DashboardPage()),
+        ],
+      );
+    }
+
+    // Show welcome screen with questionnaire button for alumni (users)
+    return _buildAlumniWelcome();
   }
 
-  Widget _buildQuestionnaireCards() {
-    // Only show live surveys on home page
-    final allSurveys = SurveyStorage.getAllAvailableSurveys();
-    // Filter to only show surveys where isLive is explicitly true
-    final availableSurveys = allSurveys.where((survey) {
-      final isLive = survey['isLive'];
-      return isLive == true; // Explicitly check for boolean true
-    }).toList();
-    
-    return RefreshIndicator(
-      onRefresh: _refreshData,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildAlumniWelcome() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              'Available Questionnaires',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.grey[800],
+            // Logo/Icon
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.blue[200]!, width: 3),
+              ),
+              child: Icon(
+                Icons.assignment_outlined,
+                size: 60,
+                color: Colors.blue[700],
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 32),
+            
+            // Welcome text
             Text(
-              'Select a questionnaire to complete',
+              'Selamat Datang, ${widget.employee?['name'] ?? 'Alumni'}!',
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Tracer Study ITK',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Colors.blue[700],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Sistem Pelacakan Alumni Institut Teknologi Kalimantan',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[600],
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 40),
+            
+            // Take Questionnaire Button
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => QuestionnaireListPage(
+                      employee: widget.employee,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.edit_note, size: 28),
+              label: const Text(
+                'Isi Kuesioner',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue[700],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Info text
+            Text(
+              'Klik tombol di atas untuk mulai mengisi kuesioner',
               style: TextStyle(
                 fontSize: 13,
                 color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
               ),
+              textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 20),
-            availableSurveys.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: 60),
-                        Icon(
-                          Icons.assignment_outlined,
-                          size: 80,
-                          color: Colors.grey[300],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No questionnaires available',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
-                : GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.85,
-                    ),
-                    itemCount: availableSurveys.length,
-                    itemBuilder: (context, index) {
-                      final survey = availableSurveys[index];
-                      return _buildQuestionnaireCard(survey);
-                    },
-                  ),
           ],
-        ),
-      ),
-      ),
-    );
-  }
-
-  Widget _buildQuestionnaireCard(Map<String, dynamic> survey) {
-    return Card(
-      elevation: 2,
-      color: Colors.blue[50],
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.blue[200]!, width: 1),
-      ),
-      child: InkWell(
-        onTap: () => _takeSurvey(survey),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Icon
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.blue[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.assignment_outlined,
-                  size: 22,
-                  color: Colors.blue[700],
-                ),
-              ),
-              const SizedBox(height: 12),
-              
-              // Title
-              Text(
-                survey['name'] ?? 'Untitled Survey',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 6),
-              
-              // Description
-              Expanded(
-                child: Text(
-                  survey['description'] ?? 'No description',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey[600],
-                  ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              
-              // Tap indicator
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.touch_app,
-                    size: 14,
-                    color: Colors.blue[400],
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Tap to take',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.blue[600],
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -456,15 +468,10 @@ class _HomePageState extends State<HomePage> {
         leading: Icon(icon, color: Colors.grey[700]),
         title: Text(
           title,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
         ),
         onTap: onTap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -484,15 +491,10 @@ class _HomePageState extends State<HomePage> {
         leading: Icon(icon, color: Colors.grey[700]),
         title: Text(
           title,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-          ),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
         ),
         children: children,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         collapsedShape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
@@ -511,15 +513,10 @@ class _HomePageState extends State<HomePage> {
         leading: Icon(icon, color: Colors.grey[600], size: 20),
         title: Text(
           title,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w400,
-          ),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
         ),
         onTap: onTap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
@@ -529,9 +526,113 @@ class _HomePageState extends State<HomePage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => TakeQuestionnairePage(
-          survey: survey,
-          employee: widget.employee,
+        builder: (context) =>
+            TakeQuestionnairePage(survey: survey, employee: widget.employee),
+      ),
+    );
+  }
+
+  void _showAvailableSurveys() {
+    final allSurveys = SurveyStorage.getAllAvailableSurveys();
+    final availableSurveys = allSurveys.where((survey) {
+      final isLive = survey['isLive'];
+      return isLive == true;
+    }).toList();
+
+    if (availableSurveys.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No questionnaires available at this time'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Available Questionnaires',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // List of surveys
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: availableSurveys.length,
+                itemBuilder: (context, index) {
+                  final survey = availableSurveys[index];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.assignment_outlined,
+                          color: Colors.blue[700],
+                        ),
+                      ),
+                      title: Text(
+                        survey['name'] ?? 'Untitled Survey',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        survey['description'] ?? 'No description',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _takeSurvey(survey);
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
