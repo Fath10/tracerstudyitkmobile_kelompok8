@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'pages/login_page.dart';
 import 'pages/home_page.dart';
+import 'pages/splash_screen.dart';
 import 'database/database_helper.dart';
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Load user from stored session
+  await AuthService.loadUser();
   
   // Create default admin account if no employees exist
   await _createDefaultAdmin();
@@ -48,7 +53,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const LoginPage(),
+      home: const SplashScreen(),
       routes: {
         '/home': (context) => const HomePage(),
         '/login': (context) => const LoginPage(),

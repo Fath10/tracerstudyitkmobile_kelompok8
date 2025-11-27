@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'employee_directory_page.dart';
 import 'login_page.dart';
 import 'user_management_page.dart';
+import 'user_profile_page.dart';
 import 'survey_management_page.dart';
 import 'take_questionnaire_page.dart';
 import 'dashboard_page.dart';
@@ -308,11 +309,36 @@ class _HomePageState extends State<HomePage> {
                           },
                         ),
 
-                      const SizedBox(height: 20),
+                      const Divider(height: 32),
+                      
+                      // Profile
+                      _buildDrawerItem(
+                        icon: Icons.person,
+                        title: 'My Profile',
+                        onTap: () {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const UserProfilePage(),
+                            ),
+                          );
+                        },
+                      ),
+                      
+                      const SizedBox(height: 8),
+                      
+                      // Logout
                       _buildDrawerItem(
                         icon: Icons.logout,
                         title: 'Logout',
-                        onTap: () {
+                        onTap: () async {
+                          // Clear the stored session
+                          await AuthService.logout();
+                          
+                          if (!mounted) return;
+                          
+                          // Navigate to login page
                           Navigator.pushAndRemoveUntil(
                             context,
                             MaterialPageRoute(

@@ -46,6 +46,12 @@ dependencies:
   
   # Charts for dashboard visualization
   fl_chart: ^0.66.0
+  
+  # HTTP requests
+  http: ^1.1.0
+  
+  # Local storage for tokens
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:

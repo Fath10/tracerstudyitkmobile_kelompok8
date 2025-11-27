@@ -32,19 +32,40 @@ class _LoginPageState extends State<LoginPage> {
       });
       
       try {
-        // Try to login with universal login (checks both employees and users)
+        final username = _emailController.text.trim();
+        final password = _passwordController.text;
+        
+        // Try backend login first (with 5s timeout)
+        bool backendSuccess = await AuthService.login(username, password);
+        
+        if (!mounted) return;
+        
+        if (backendSuccess) {
+          // Backend login successful
+          final userMap = AuthService.currentUserMap;
+          if (userMap != null) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HomePage(employee: userMap),
+              ),
+            );
+            return;
+          }
+        }
+        
+        // Backend failed, try local database
         final account = await DatabaseHelper.instance.universalLogin(
-          _emailController.text.trim(),
-          _passwordController.text,
+          username,
+          password,
         );
         
         if (!mounted) return;
         
         if (account != null) {
-          // Set current user in auth service
+          // Local login successful - set user and save to persistent storage
           AuthService.setCurrentUser(account);
-          
-          // Login successful
+          await AuthService.saveLocalUser(account);
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -52,7 +73,7 @@ class _LoginPageState extends State<LoginPage> {
             ),
           );
         } else {
-          // Login failed
+          // Both login attempts failed
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Invalid email or password'),
@@ -63,8 +84,8 @@ class _LoginPageState extends State<LoginPage> {
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
+          const SnackBar(
+            content: Text('Login error. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );

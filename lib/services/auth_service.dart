@@ -1,13 +1,164 @@
-class AuthService {
-  static Map<String, dynamic>? _currentUser;
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:async';
+import '../config/api_config.dart';
+import '../models/user_model.dart';
+import 'token_service.dart';
 
-  static Map<String, dynamic>? get currentUser => _currentUser;
+class AuthService {
+  static UserModel? _currentUser;
+
+  static UserModel? get currentUser => _currentUser;
+  static Map<String, dynamic>? get currentUserMap => _currentUser != null 
+      ? _currentUser!.toJson() 
+      : null;
 
   static void setCurrentUser(Map<String, dynamic> user) {
-    _currentUser = user;
+    // Check if this is local database format (has 'role' as string)
+    if (user['role'] is String) {
+      final transformed = _transformLocalUserData(user);
+      _currentUser = UserModel.fromJson(transformed);
+    } else {
+      _currentUser = UserModel.fromJson(user);
+    }
   }
 
-  static void logout() {
+  // Save local database user to persistent storage
+  static Future<void> saveLocalUser(Map<String, dynamic> user) async {
+    // Transform local database format to backend format
+    final transformedUser = _transformLocalUserData(user);
+    await TokenService.saveUserData(transformedUser);
+  }
+
+  // Transform local database user data to match backend format
+  static Map<String, dynamic> _transformLocalUserData(Map<String, dynamic> user) {
+    final roleName = user['role']?.toString() ?? 'user';
+    
+    return {
+      'id': user['id']?.toString() ?? '',
+      'username': user['name'] ?? user['username'] ?? '',
+      'email': user['email'],
+      'nim': user['nikKtp'],
+      'address': user['placeOfBirth'],
+      'phone_number': user['phone'],
+      'last_survey': 'none',
+      'role': {
+        'id': _getRoleId(roleName),
+        'name': roleName,
+        'program_study': null,
+        'program_study_name': user['prodi'],
+      },
+      'program_study': user['prodi'] != null ? {
+        'id': 1,
+        'name': user['prodi'],
+        'department': null,
+        'department_name': null,
+        'faculty_name': null,
+      } : null,
+    };
+  }
+
+  // Get role ID based on role name
+  static int _getRoleId(String roleName) {
+    switch (roleName) {
+      case 'admin':
+        return 1;
+      case 'surveyor':
+        return 2;
+      case 'team_prodi':
+        return 3;
+      case 'user':
+        return 4;
+      default:
+        return 4;
+    }
+  }
+
+  // Login with backend
+  static Future<bool> login(String username, String password) async {
+    try {
+      final url = Uri.parse(ApiConfig.getUrl(ApiConfig.login));
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'username': username,
+          'password': password,
+        }),
+      ).timeout(
+        const Duration(seconds: 5), // Reduced timeout for faster response
+        onTimeout: () {
+          throw TimeoutException('Connection timeout');
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        
+        // Save tokens
+        await TokenService.saveTokens(
+          accessToken: data['access'],
+          refreshToken: data['refresh'],
+        );
+
+        // Save user data
+        final userData = data['user'] ?? {};
+        await TokenService.saveUserData(userData);
+        
+        // Set current user
+        _currentUser = UserModel.fromJson(userData);
+        
+        return true;
+      }
+      return false;
+    } on TimeoutException {
+      print('Backend login timeout - will try local database');
+      return false;
+    } catch (e) {
+      print('Backend login error: $e');
+      return false;
+    }
+  }
+
+  // Register with backend
+  static Future<bool> register({
+    required String id,
+    required String username,
+    required String password,
+  }) async {
+    try {
+      final url = Uri.parse(ApiConfig.getUrl(ApiConfig.register));
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'id': id,
+          'username': username,
+          'password': password,
+        }),
+      ).timeout(ApiConfig.connectionTimeout);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print('Register error: $e');
+      return false;
+    }
+  }
+
+  // Load user from stored token
+  static Future<void> loadUser() async {
+    final userData = await TokenService.getUserData();
+    if (userData != null) {
+      _currentUser = UserModel.fromJson(userData);
+    }
+  }
+
+  // Logout
+  static Future<void> logout() async {
+    await TokenService.clearAll();
     _currentUser = null;
   }
 
@@ -16,24 +167,24 @@ class AuthService {
   // Get user role
   static String get userRole {
     if (_currentUser == null) return 'guest';
-    // If it's an employee without a role field, default to 'surveyor'
-    // If it's a user (alumni), return 'user'
-    if (accountType == 'employee') {
-      return _currentUser!['role'] ?? 'surveyor';
-    }
-    return _currentUser!['role'] ?? 'user';
+    return _currentUser!.role?.name ?? 'user';
   }
 
-  // Get account type (employee or user)
+  // Get account type (legacy - kept for compatibility)
   static String get accountType {
     if (_currentUser == null) return 'guest';
-    return _currentUser!['accountType'] ?? 'user';
+    final role = userRole;
+    // Admin, surveyor, and team_prodi are employees; others are users
+    if (role == 'admin' || role == 'surveyor' || role == 'team_prodi') {
+      return 'employee';
+    }
+    return 'user';
   }
 
   // Get prodi (for team prodi)
   static String? get userProdi {
-    if (_currentUser == null || accountType != 'employee') return null;
-    return _currentUser!['prodi'];
+    if (_currentUser == null) return null;
+    return _currentUser!.programStudy?.name;
   }
 
   // Permission checks

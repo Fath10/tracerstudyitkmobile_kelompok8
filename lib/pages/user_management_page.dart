@@ -1,9 +1,11 @@
 ﻿import 'package:flutter/material.dart';
-import '../database/database_helper.dart';
 import 'employee_directory_page.dart';
 import 'login_page.dart';
 import 'survey_management_page.dart';
+import 'user_form_page.dart';
 import '../services/auth_service.dart';
+import '../services/backend_user_service.dart';
+import '../models/user_model.dart';
 
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({super.key});
@@ -13,7 +15,10 @@ class UserManagementPage extends StatefulWidget {
 
 class _UserManagementPageState extends State<UserManagementPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  List<Map<String, dynamic>> users = [];
+  final _backendUserService = BackendUserService();
+  List<UserModel> users = [];
+  List<RoleModel> roles = [];
+  List<ProgramStudyModel> programStudies = [];
   bool isLoading = true;
   int currentPage = 1;
   int itemsPerPage = 10;
@@ -22,38 +27,65 @@ class _UserManagementPageState extends State<UserManagementPage> {
   @override
   void initState() {
     super.initState();
-    _loadUsers();
+    _loadData();
   }
 
-  Future<void> _loadUsers() async {
+  Future<void> _loadData() async {
     setState(() { isLoading = true; });
     try {
-      final data = await DatabaseHelper.instance.getAllUsers();
+      // Load data with timeout handling
+      final results = await Future.wait([
+        _backendUserService.getAllUsers().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () => throw Exception('Timeout loading users'),
+        ),
+        _backendUserService.getAllRoles().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () => throw Exception('Timeout loading roles'),
+        ),
+        _backendUserService.getAllProgramStudies().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () => throw Exception('Timeout loading program studies'),
+        ),
+      ]);
+      
       setState(() {
-        users = data;
+        users = results[0] as List<UserModel>;
+        roles = results[1] as List<RoleModel>;
+        programStudies = results[2] as List<ProgramStudyModel>;
         isLoading = false;
       });
+      
+      // Debug log
+      print('Loaded ${users.length} users, ${roles.length} roles, ${programStudies.length} program studies');
+      
     } catch (e) {
       setState(() { isLoading = false; });
+      print('Error loading data: $e'); // Debug log
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading users: ${e.toString()}')),
+          SnackBar(
+            content: Text('Error loading data: ${e.toString()}\n\nPlease check:\n1. Backend is running\n2. You are logged in\n3. Network connection'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 8),
+          ),
         );
       }
     }
   }
 
-  List<Map<String, dynamic>> get filteredUsers {
+  List<UserModel> get filteredUsers {
     if (searchQuery.isEmpty) return users;
     return users.where((user) {
-      final name = user['name']?.toString().toLowerCase() ?? '';
-      final email = user['email']?.toString().toLowerCase() ?? '';
+      final name = user.username.toLowerCase();
+      final email = user.email?.toLowerCase() ?? '';
+      final nim = user.nim?.toLowerCase() ?? '';
       final query = searchQuery.toLowerCase();
-      return name.contains(query) || email.contains(query);
+      return name.contains(query) || email.contains(query) || nim.contains(query);
     }).toList();
   }
 
-  List<Map<String, dynamic>> get paginatedUsers {
+  List<UserModel> get paginatedUsers {
     final filtered = filteredUsers;
     final startIndex = (currentPage - 1) * itemsPerPage;
     final endIndex = (startIndex + itemsPerPage).clamp(0, filtered.length);
@@ -66,12 +98,12 @@ class _UserManagementPageState extends State<UserManagementPage> {
     return pages > 0 ? pages : 1;
   }
 
-  Future<void> _deleteUser(Map<String, dynamic> user) async {
+  Future<void> _deleteUser(UserModel user) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete User'),
-        content: Text('Are you sure you want to delete ${user['name']}?'),
+        content: Text('Are you sure you want to delete ${user.username}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -87,13 +119,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
     if (confirmed == true && mounted) {
       try {
-        await DatabaseHelper.instance.deleteEmployee(user['id']);
+        await _backendUserService.deleteUser(user.id);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('User deleted successfully'), backgroundColor: Colors.green),
           );
         }
-        _loadUsers();
+        _loadData();
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -105,130 +137,58 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   void _showAddUserDialog() {
-    final nameController = TextEditingController();
-    final emailController = TextEditingController();
-    final nikController = TextEditingController();
-    final passwordController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add New User'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Name *', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(
-                  hintText: 'Enter name',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
-                  contentPadding: const EdgeInsets.all(10),
-                  isDense: true,
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text('Email *', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: emailController,
-                decoration: InputDecoration(
-                  hintText: 'Enter email',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
-                  contentPadding: const EdgeInsets.all(10),
-                  isDense: true,
-                ),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              const SizedBox(height: 12),
-              const Text('NIK *', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: nikController,
-                decoration: InputDecoration(
-                  hintText: 'Enter NIK',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
-                  contentPadding: const EdgeInsets.all(10),
-                  isDense: true,
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 12),
-              const Text('Password *', style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
-              const SizedBox(height: 6),
-              TextField(
-                controller: passwordController,
-                decoration: InputDecoration(
-                  hintText: 'Enter password (min. 6 characters)',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
-                  contentPadding: const EdgeInsets.all(10),
-                  isDense: true,
-                ),
-                obscureText: true,
-              ),
-            ],
-          ),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => UserFormPage(
+          roles: roles,
+          programStudies: programStudies,
+          onSave: (user) async {
+            try {
+              await _backendUserService.createUser(user);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('User created successfully'), backgroundColor: Colors.green),
+                );
+                _loadData();
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+                );
+              }
+            }
+          },
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final name = nameController.text.trim();
-              final email = emailController.text.trim();
-              final nik = nikController.text.trim();
-              final password = passwordController.text;
-              if (name.isEmpty || email.isEmpty || nik.isEmpty || password.isEmpty) {
+      ),
+    );
+  }
+
+  void _showEditUserDialog(UserModel user) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => UserFormPage(
+          user: user,
+          roles: roles,
+          programStudies: programStudies,
+          onSave: (updatedUser) async {
+            try {
+              await _backendUserService.updateUser(user.id, updatedUser);
+              if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please fill all required fields'), backgroundColor: Colors.red),
+                  const SnackBar(content: Text('User updated successfully'), backgroundColor: Colors.green),
                 );
-                return;
+                _loadData();
               }
-              if (!email.contains('@')) {
+            } catch (e) {
+              if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please enter a valid email address'), backgroundColor: Colors.red),
+                  SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
                 );
-                return;
               }
-              if (password.length < 6) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Password must be at least 6 characters'), backgroundColor: Colors.red),
-                );
-                return;
-              }
-              try {
-                await DatabaseHelper.instance.createUser({
-                  'name': name,
-                  'email': email,
-                  'nikKtp': nik,
-                  'password': password,
-                });
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('User created successfully'), backgroundColor: Colors.green),
-                  );
-                  _loadUsers();
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0066CC),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Add User'),
-          ),
-        ],
+            }
+          },
+        ),
       ),
     );
   }
@@ -338,7 +298,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       ),
                       child: Center(
                         child: Text(
-                          (AuthService.currentUser?['name']?.toString() ?? 'U').substring(0, 1).toUpperCase(),
+                          (AuthService.currentUser?.username ?? 'U').substring(0, 1).toUpperCase(),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 28,
@@ -351,7 +311,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     
                     // User name
                     Text(
-                      AuthService.currentUser?['name']?.toString() ?? 'Your Name',
+                      AuthService.currentUser?.username ?? 'Your Name',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 20,
@@ -362,7 +322,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     
                     // User ID/Email
                     Text(
-                      AuthService.currentUser?['email']?.toString() ?? '11221044',
+                      AuthService.currentUser?.nim ?? AuthService.currentUser?.email ?? '11221044',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
                         fontSize: 14,
@@ -602,9 +562,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                       children: [
                                         _buildHeaderCell('', isCheckbox: true),
                                         _buildHeaderCell('Name'),
-                                        _buildHeaderCell('NIK'),
-                                        _buildHeaderCell('Unit'),
-                                        _buildHeaderCell(''),
+                                        _buildHeaderCell('ID/NIM'),
+                                        _buildHeaderCell('Role'),
+                                        _buildHeaderCell('Actions'),
                                       ],
                                     ),
                                   ],
@@ -638,15 +598,15 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                       4: FixedColumnWidth(50),
                                     },
                                     children: [
-                                      TableRow(
-                                        children: [
-                                          _buildDataCell('', isCheckbox: true),
-                                          _buildDataCell(user['name']?.toString() ?? 'Item default'),
-                                          _buildDataCell(user['nikKtp']?.toString() ?? 'Item default'),
-                                          _buildDataCell('Item default'),
-                                          _buildDeleteCell(user),
-                                        ],
-                                      ),
+                                    TableRow(
+                                      children: [
+                                        _buildDataCell('', isCheckbox: true),
+                                        _buildDataCell(user.username),
+                                        _buildDataCell(user.nim ?? user.id),
+                                        _buildDataCell(user.role?.name ?? '-'),
+                                        _buildActionCell(user),
+                                      ],
+                                    ),
                                     ],
                                   );
                                 }
@@ -777,16 +737,29 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
   }
 
-  Widget _buildDeleteCell(Map<String, dynamic> user) {
+  Widget _buildActionCell(UserModel user) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      child: IconButton(
-        icon: const Icon(Icons.delete_outline, size: 18),
-        color: Colors.red.shade700,
-        onPressed: () => _deleteUser(user),
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(),
-        tooltip: 'Delete',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            color: Colors.blue.shade700,
+            onPressed: () => _showEditUserDialog(user),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: 'Edit',
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, size: 18),
+            color: Colors.red.shade700,
+            onPressed: () => _deleteUser(user),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: 'Delete',
+          ),
+        ],
       ),
     );
   }

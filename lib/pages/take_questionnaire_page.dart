@@ -632,9 +632,9 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
       // Save response to database
       final response = {
         'surveyName': widget.survey['name'],
-        'userId': AuthService.currentUser?['id'],
-        'userEmail': AuthService.currentUser?['email'] ?? 'unknown',
-        'userName': AuthService.currentUser?['name'] ?? 'Unknown User',
+        'userId': AuthService.currentUser?.id,
+        'userEmail': AuthService.currentUser?.email ?? 'unknown',
+        'userName': AuthService.currentUser?.username ?? 'Unknown User',
         'answers': jsonEncode(serializableAnswers), // Convert to JSON string
       };
       

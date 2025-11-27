@@ -218,7 +218,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                       ),
                       child: Center(
                         child: Text(
-                          (AuthService.currentUser?['name']?.toString() ?? 'U')
+                          (AuthService.currentUser?.username ?? 'U')
                               .substring(0, 1)
                               .toUpperCase(),
                           style: const TextStyle(
@@ -233,7 +233,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
 
                     // User name
                     Text(
-                      AuthService.currentUser?['name']?.toString() ??
+                      AuthService.currentUser?.username ??
                           'Your Name',
                       style: const TextStyle(
                         color: Colors.white,
@@ -245,7 +245,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
 
                     // User ID/Email
                     Text(
-                      AuthService.currentUser?['email']?.toString() ??
+                      AuthService.currentUser?.nim ?? AuthService.currentUser?.email ??
                           '11221044',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
