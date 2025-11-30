@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'employee_directory_page.dart';
 import 'login_page.dart';
 import 'user_management_page.dart';
+import 'home_page.dart';
 import 'add_survey_page.dart';
-import 'edit_survey_page.dart';
+import 'edit_survey_with_sections_page.dart';
 import 'take_questionnaire_page.dart';
+import 'questionnaire_list_page.dart';
 import '../services/survey_storage.dart';
+import '../services/auth_service.dart';
 
 class SurveyManagementPage extends StatefulWidget {
   final Map<String, dynamic>? employee;
@@ -215,53 +218,123 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                     child: ListView(
                       padding: const EdgeInsets.symmetric(vertical: 20),
                       children: [
-                        _buildExpandableSection(
-                          icon: Icons.business_center_outlined,
-                          title: 'Unit Directory',
-                          children: [
-                            _buildSubMenuItem(
-                              icon: Icons.folder_outlined,
-                              title: 'User Management',
-                              onTap: () {
-                                Navigator.pop(context);
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const UserManagementPage(),
-                                  ),
-                                );
-                              },
-                            ),
-                            _buildSubMenuItem(
-                              icon: Icons.business_outlined,
-                              title: 'Employee Directory',
-                              onTap: () {
-                                Navigator.pop(context);
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const EmployeeDirectoryPage(),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
+                        // Dashboard for employees
+                        if (AuthService.isAdmin ||
+                            AuthService.isSurveyor ||
+                            AuthService.isTeamProdi)
+                          _buildDrawerItem(
+                            icon: Icons.dashboard,
+                            title: 'Dashboard',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const HomePage(),
+                                ),
+                              );
+                            },
+                          ),
+                        
+                        // Only show Unit Directory for admins
+                        if (AuthService.isAdmin)
+                          _buildExpandableSection(
+                            icon: Icons.business_center_outlined,
+                            title: 'Unit Directory',
+                            children: [
+                              _buildSubMenuItem(
+                                icon: Icons.folder_outlined,
+                                title: 'User Management',
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const UserManagementPage(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              _buildSubMenuItem(
+                                icon: Icons.business_outlined,
+                                title: 'Employee Directory',
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const EmployeeDirectoryPage(),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        // Show Questionnaire section for employees
+                        if (AuthService.isAdmin ||
+                            AuthService.isSurveyor ||
+                            AuthService.isTeamProdi)
+                          _buildExpandableSection(
+                            icon: Icons.poll_outlined,
+                            title: 'Questionnaire',
+                            children: [
+                              _buildSubMenuItem(
+                                icon: Icons.dashboard_outlined,
+                                title: 'Survey Management',
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  // Already on Survey Management page
+                                },
+                              ),
+                              _buildSubMenuItem(
+                                icon: Icons.assignment_outlined,
+                                title: 'Take Questionnaire',
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const QuestionnaireListPage(),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+
+                        // Users (alumni) - show Take Questionnaire option
+                        if (AuthService.isUser)
+                          _buildDrawerItem(
+                            icon: Icons.assignment_outlined,
+                            title: 'Take Questionnaire',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const QuestionnaireListPage(),
+                                ),
+                              );
+                            },
+                          ),
+
+                        const Divider(height: 32),
+                        
+                        // Profile
+                        _buildDrawerItem(
+                          icon: Icons.person,
+                          title: 'My Profile',
+                          onTap: () {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Profile page coming soon')),
+                            );
+                          },
                         ),
-                        _buildExpandableSection(
-                          icon: Icons.quiz_outlined,
-                          title: 'Questionnaire',
-                          children: [
-                            _buildSubMenuItem(
-                              icon: Icons.poll_outlined,
-                              title: 'Survey Management',
-                              onTap: () {
-                                Navigator.pop(context);
-                                // Already on Survey Management page
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
+                        
+                        const SizedBox(height: 8),
+                        
+                        // Logout
                         _buildDrawerItem(
                           icon: Icons.logout,
                           title: 'Logout',
@@ -537,7 +610,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (context) => EditSurveyPage(
+                                          builder: (context) => EditSurveyWithSectionsPage(
                                             survey: survey,
                                           ),
                                         ),
@@ -1260,12 +1333,13 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
   }
 
   void _editSurvey(Map<String, dynamic> survey, int index, {bool isCustom = false}) async {
-    // Convert survey data to match EditSurveyPage expectations
+    // Convert survey data to match EditSurveyWithSectionsPage expectations
     final surveyData = {
       'name': survey['title'] ?? survey['name'] ?? 'Untitled Survey',
       'title': survey['title'] ?? survey['name'] ?? 'Untitled Survey',
       'description': survey['subtitle'] ?? survey['description'] ?? 'No description',
       'questions': survey['questions'], // Pass the questions data
+      'sections': survey['sections'], // Pass sections if available
       'isDefault': survey['isDefault'] ?? false,
       'isTemplate': !isCustom && survey['isDefault'] != true, // Mark as template if not custom and not default
       'isLive': survey['isLive'] ?? false, // Pass live status
@@ -1274,7 +1348,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => EditSurveyPage(survey: surveyData),
+        builder: (context) => EditSurveyWithSectionsPage(survey: surveyData),
       ),
     );
     

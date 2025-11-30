@@ -43,14 +43,16 @@ class ApiService {
     return response;
   }
 
-  // GET request
-  Future<Map<String, dynamic>> get(
+  // GET request - can return Map or List depending on endpoint
+  Future<dynamic> get(
     String endpoint, {
     bool includeAuth = true,
   }) async {
     try {
       final headers = await _getHeaders(includeAuth: includeAuth);
       final url = Uri.parse(ApiConfig.getUrl(endpoint));
+      print('🌐 GET request to: $url');
+      print('📋 Headers: $headers');
 
       final response = await _handleResponse(
         () => http.get(url, headers: headers).timeout(
@@ -58,8 +60,10 @@ class ApiService {
             ),
       );
 
+      print('✅ Response status: ${response.statusCode}');
       return _processResponse(response);
     } catch (e) {
+      print('❌ Network error for $endpoint: $e');
       throw Exception('Network error: $e');
     }
   }
@@ -164,20 +168,23 @@ class ApiService {
   }
 
   // Process HTTP response
-  Map<String, dynamic> _processResponse(http.Response response) {
+  dynamic _processResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       if (response.body.isEmpty) {
         return {'success': true};
       }
+      // Return the decoded JSON as-is (can be Map or List)
       return json.decode(response.body);
     } else {
       String errorMessage = 'Request failed with status: ${response.statusCode}';
       try {
         final errorBody = json.decode(response.body);
-        errorMessage = errorBody['detail'] ?? 
-                      errorBody['error'] ?? 
-                      errorBody['message'] ?? 
-                      errorMessage;
+        if (errorBody is Map) {
+          errorMessage = errorBody['detail'] ?? 
+                        errorBody['error'] ?? 
+                        errorBody['message'] ?? 
+                        errorMessage;
+        }
       } catch (e) {
         // If response body is not JSON, use status code
       }

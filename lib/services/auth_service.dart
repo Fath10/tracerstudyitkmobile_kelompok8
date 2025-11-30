@@ -82,7 +82,7 @@ class AuthService {
         url,
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
-          'username': username,
+          'id': username,  // Backend expects 'id' as USERNAME_FIELD
           'password': password,
         }),
       ).timeout(
@@ -153,13 +153,16 @@ class AuthService {
     final userData = await TokenService.getUserData();
     if (userData != null) {
       _currentUser = UserModel.fromJson(userData);
+      print('✅ Loaded user: ${_currentUser!.username}, Role: ${_currentUser!.role?.name}');
     }
   }
 
   // Logout
   static Future<void> logout() async {
+    print('🚪 Logging out user: ${_currentUser?.username}');
     await TokenService.clearAll();
     _currentUser = null;
+    print('✅ Logout complete, user cleared');
   }
 
   static bool get isLoggedIn => _currentUser != null;
@@ -167,7 +170,7 @@ class AuthService {
   // Get user role
   static String get userRole {
     if (_currentUser == null) return 'guest';
-    return _currentUser!.role?.name ?? 'user';
+    return (_currentUser!.role?.name ?? 'user').toLowerCase();
   }
 
   // Get account type (legacy - kept for compatibility)
@@ -188,10 +191,10 @@ class AuthService {
   }
 
   // Permission checks
-  static bool get isAdmin => userRole == 'admin';
-  static bool get isSurveyor => userRole == 'surveyor';
-  static bool get isTeamProdi => userRole == 'team_prodi';
-  static bool get isUser => userRole == 'user';
+  static bool get isAdmin => userRole.toLowerCase() == 'admin';
+  static bool get isSurveyor => userRole.toLowerCase() == 'surveyor';
+  static bool get isTeamProdi => userRole.toLowerCase() == 'team_prodi';
+  static bool get isUser => userRole.toLowerCase() == 'user' || userRole.toLowerCase() == 'alumni';
 
   // Access permissions
   static bool get canAccessUserManagement => isAdmin;

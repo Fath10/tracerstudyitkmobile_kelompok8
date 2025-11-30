@@ -244,11 +244,6 @@ class _UserProfilePageState extends State<UserProfilePage> {
                       },
                     ),
                     _buildEditableField(
-                      Icons.school,
-                      'NIM',
-                      _nimController,
-                    ),
-                    _buildEditableField(
                       Icons.email,
                       'Email',
                       _emailController,
@@ -293,22 +288,15 @@ class _UserProfilePageState extends State<UserProfilePage> {
                     const SizedBox(height: 16),
                     _buildInfoRow(
                       Icons.school_outlined,
-                      'Program Study',
+                      'Program Studi',
                       user.programStudy!.name,
                       editable: false,
                     ),
-                    if (user.programStudy!.departmentName != null)
-                      _buildInfoRow(
-                        Icons.domain,
-                        'Department',
-                        user.programStudy!.departmentName!,
-                        editable: false,
-                      ),
-                    if (user.programStudy!.facultyName != null)
+                    if (user.fakultas != null && user.fakultas!.isNotEmpty)
                       _buildInfoRow(
                         Icons.account_balance,
-                        'Faculty',
-                        user.programStudy!.facultyName!,
+                        'Fakultas',
+                        user.fakultas!,
                         editable: false,
                       ),
                   ],

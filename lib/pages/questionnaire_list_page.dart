@@ -216,7 +216,7 @@ class _QuestionnaireListPageState extends State<QuestionnaireListPage> {
                             title: 'User Management',
                             onTap: () {
                               Navigator.pop(context);
-                              Navigator.push(
+                              Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => const UserManagementPage(),
@@ -229,7 +229,7 @@ class _QuestionnaireListPageState extends State<QuestionnaireListPage> {
                             title: 'Employee Directory',
                             onTap: () {
                               Navigator.pop(context);
-                              Navigator.push(
+                              Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => const EmployeeDirectoryPage(),
@@ -249,7 +249,7 @@ class _QuestionnaireListPageState extends State<QuestionnaireListPage> {
                             title: 'Survey Management',
                             onTap: () {
                               Navigator.pop(context);
-                              Navigator.push(
+                              Navigator.pushReplacement(
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) => SurveyManagementPage(employee: widget.employee),

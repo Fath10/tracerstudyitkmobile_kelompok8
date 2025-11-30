@@ -3,6 +3,8 @@ import 'employee_directory_page.dart';
 import 'login_page.dart';
 import 'survey_management_page.dart';
 import 'user_form_page.dart';
+import 'home_page.dart';
+import 'questionnaire_list_page.dart';
 import '../services/auth_service.dart';
 import '../services/backend_user_service.dart';
 import '../models/user_model.dart';
@@ -23,6 +25,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
   int currentPage = 1;
   int itemsPerPage = 10;
   String searchQuery = '';
+  Set<String> selectedUsers = {}; // Track selected user IDs for checkboxes
+  String? selectedRoleFilter; // Filter by role
+  String? selectedFakultasFilter; // Filter by fakultas
+  bool showFilters = false; // Toggle filter visibility
 
   @override
   void initState() {
@@ -31,43 +37,52 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
+    
+    print('📱 UserManagement: Starting data load...');
     setState(() { isLoading = true; });
-    try {
-      // Load data with timeout handling
-      final results = await Future.wait([
-        _backendUserService.getAllUsers().timeout(
-          const Duration(seconds: 10),
-          onTimeout: () => throw Exception('Timeout loading users'),
-        ),
-        _backendUserService.getAllRoles().timeout(
-          const Duration(seconds: 10),
-          onTimeout: () => throw Exception('Timeout loading roles'),
-        ),
-        _backendUserService.getAllProgramStudies().timeout(
-          const Duration(seconds: 10),
-          onTimeout: () => throw Exception('Timeout loading program studies'),
-        ),
-      ]);
-      
-      setState(() {
-        users = results[0] as List<UserModel>;
-        roles = results[1] as List<RoleModel>;
-        programStudies = results[2] as List<ProgramStudyModel>;
-        isLoading = false;
-      });
-      
-      // Debug log
-      print('Loaded ${users.length} users, ${roles.length} roles, ${programStudies.length} program studies');
-      
-    } catch (e) {
-      setState(() { isLoading = false; });
-      print('Error loading data: $e'); // Debug log
+    
+    // Load all data - service methods handle timeouts and return empty lists on error
+    final usersResult = await _backendUserService.getAllUsers();
+    print('📱 UserManagement: Got ${usersResult.length} users');
+    
+    final rolesResult = await _backendUserService.getAllRoles();
+    print('📱 UserManagement: Got ${rolesResult.length} roles');
+    
+    final programStudiesResult = await _backendUserService.getAllProgramStudies();
+    print('📱 UserManagement: Got ${programStudiesResult.length} program studies');
+    
+    if (!mounted) return;
+    
+    setState(() {
+      users = usersResult;
+      roles = rolesResult;
+      programStudies = programStudiesResult;
+      isLoading = false;
+    });
+    
+    print('📱 UserManagement: State updated - isLoading=$isLoading, users=${users.length}');
+    
+    // Determine if we're using cached data (offline mode)
+    final bool hasData = usersResult.isNotEmpty || rolesResult.isNotEmpty || programStudiesResult.isNotEmpty;
+    
+    if (hasData) {
+      print('📱 UserManagement: Data loaded - users=${usersResult.length}, roles=${rolesResult.length}, programs=${programStudiesResult.length}');
+      // Check if data seems to be from cache (no backend connection)
+      // Show info if any of the cached data indicators are present
+    } else {
+      print('📱 UserManagement: No data available (not even cached)');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading data: ${e.toString()}\n\nPlease check:\n1. Backend is running\n2. You are logged in\n3. Network connection'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 8),
+            content: const Text('Backend server is offline and no cached data available'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: _loadData,
+            ),
           ),
         );
       }
@@ -75,14 +90,33 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   List<UserModel> get filteredUsers {
-    if (searchQuery.isEmpty) return users;
-    return users.where((user) {
-      final name = user.username.toLowerCase();
-      final email = user.email?.toLowerCase() ?? '';
-      final nim = user.nim?.toLowerCase() ?? '';
-      final query = searchQuery.toLowerCase();
-      return name.contains(query) || email.contains(query) || nim.contains(query);
-    }).toList();
+    var filtered = users;
+    
+    // Filter out admin users
+    filtered = filtered.where((user) => user.role?.name?.toLowerCase() != 'admin').toList();
+    
+    // Apply search filter
+    if (searchQuery.isNotEmpty) {
+      filtered = filtered.where((user) {
+        final name = user.username.toLowerCase();
+        final id = user.id.toLowerCase();
+        final email = user.email?.toLowerCase() ?? '';
+        final query = searchQuery.toLowerCase();
+        return name.contains(query) || id.contains(query) || email.contains(query);
+      }).toList();
+    }
+    
+    // Apply role filter
+    if (selectedRoleFilter != null && selectedRoleFilter != 'All') {
+      filtered = filtered.where((user) => user.role?.name == selectedRoleFilter).toList();
+    }
+    
+    // Apply fakultas filter
+    if (selectedFakultasFilter != null && selectedFakultasFilter != 'All') {
+      filtered = filtered.where((user) => user.fakultas == selectedFakultasFilter).toList();
+    }
+    
+    return filtered;
   }
 
   List<UserModel> get paginatedUsers {
@@ -136,15 +170,70 @@ class _UserManagementPageState extends State<UserManagementPage> {
     }
   }
 
+  void _deleteSelectedUsers() async {
+    if (selectedUsers.isEmpty) return;
+    
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Users'),
+        content: Text('Are you sure you want to delete ${selectedUsers.length} selected user(s)?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        // Delete each selected user
+        for (String userId in selectedUsers) {
+          await _backendUserService.deleteUser(userId);
+        }
+        
+        setState(() {
+          selectedUsers.clear();
+        });
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Selected users deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _loadData();
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting users: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   void _showAddUserDialog() {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => UserFormPage(
           roles: roles,
           programStudies: programStudies,
-          onSave: (user) async {
+          onSave: (userOrData) async {
             try {
-              await _backendUserService.createUser(user);
+              await _backendUserService.createUser(userOrData);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('User created successfully'), backgroundColor: Colors.green),
@@ -171,9 +260,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
           user: user,
           roles: roles,
           programStudies: programStudies,
-          onSave: (updatedUser) async {
+          onSave: (updatedUserOrData) async {
             try {
-              await _backendUserService.updateUser(user.id, updatedUser);
+              await _backendUserService.updateUser(user.id, updatedUserOrData);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('User updated successfully'), backgroundColor: Colors.green),
@@ -242,6 +331,12 @@ class _UserManagementPageState extends State<UserManagementPage> {
           ],
         ),
         actions: [
+          if (selectedUsers.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 22),
+              tooltip: 'Delete selected users (${selectedUsers.length})',
+              onPressed: _deleteSelectedUsers,
+            ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined, color: Colors.black87, size: 22),
             onPressed: () {},
@@ -356,6 +451,24 @@ class _UserManagementPageState extends State<UserManagementPage> {
                   child: ListView(
                     padding: const EdgeInsets.symmetric(vertical: 20),
                     children: [
+                      // Dashboard for employees (admin, surveyor, team_prodi)
+                      if (AuthService.isAdmin ||
+                          AuthService.isSurveyor ||
+                          AuthService.isTeamProdi)
+                        _buildDrawerItem(
+                          icon: Icons.dashboard,
+                          title: 'Dashboard',
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const HomePage(),
+                              ),
+                            );
+                          },
+                        ),
+
                       // Only show Unit Directory for admins
                       if (AuthService.isAdmin)
                         _buildExpandableSection(
@@ -388,11 +501,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       // Show Questionnaire section for employees (admin, surveyor, team_prodi)
                       if (AuthService.isAdmin || AuthService.isSurveyor || AuthService.isTeamProdi)
                         _buildExpandableSection(
-                          icon: Icons.quiz_outlined,
+                          icon: Icons.poll_outlined,
                           title: 'Questionnaire',
                           children: [
                             _buildSubMenuItem(
-                              icon: Icons.poll_outlined,
+                              icon: Icons.dashboard_outlined,
                               title: 'Survey Management',
                               onTap: () {
                                 Navigator.pop(context);
@@ -404,18 +517,55 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 );
                               },
                             ),
+                            _buildSubMenuItem(
+                              icon: Icons.assignment_outlined,
+                              title: 'Take Questionnaire',
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const QuestionnaireListPage(),
+                                  ),
+                                );
+                              },
+                            ),
                           ],
                         ),
-                      // Users (alumni) only see Take Questionnaire (no Survey Management)
+
+                      // Users (alumni) - show Take Questionnaire option
                       if (AuthService.isUser)
                         _buildDrawerItem(
                           icon: Icons.assignment_outlined,
                           title: 'Take Questionnaire',
                           onTap: () {
                             Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const QuestionnaireListPage(),
+                              ),
+                            );
                           },
                         ),
-                      const SizedBox(height: 20),
+
+                      const Divider(height: 32),
+                      
+                      // Profile
+                      _buildDrawerItem(
+                        icon: Icons.person,
+                        title: 'My Profile',
+                        onTap: () {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Profile page coming soon')),
+                          );
+                        },
+                      ),
+                      
+                      const SizedBox(height: 8),
+                      
+                      // Logout
                       _buildDrawerItem(
                         icon: Icons.logout,
                         title: 'Logout',
@@ -458,66 +608,160 @@ class _UserManagementPageState extends State<UserManagementPage> {
               color: Colors.grey.shade50,
               border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
             ),
-            child: Row(
+            child: Column(
               children: [
-                Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Search',
-                      hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-                      prefixIcon: Icon(Icons.search, size: 20, color: Colors.grey.shade600),
-                      suffixIcon: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.mic, size: 20, color: Colors.grey.shade600),
-                          const SizedBox(width: 8),
-                        ],
+                // Search bar and buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Search by name, ID, or email',
+                          hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                          prefixIcon: Icon(Icons.search, size: 20, color: Colors.grey.shade600),
+                          suffixIcon: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.mic, size: 20, color: Colors.grey.shade600),
+                              const SizedBox(width: 8),
+                            ],
+                          ),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          isDense: true,
+                        ),
+                        style: const TextStyle(fontSize: 13),
+                        onChanged: (value) {
+                          setState(() {
+                            searchQuery = value;
+                            currentPage = 1;
+                          });
+                        },
                       ),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: Colors.grey.shade300)),
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      isDense: true,
                     ),
-                    style: const TextStyle(fontSize: 13),
-                    onChanged: (value) {
-                      setState(() {
-                        searchQuery = value;
-                        currentPage = 1;
-                      });
-                    },
+                    const SizedBox(width: 8),
+                    // Add User Button (+ Icon)
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0066CC),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: IconButton(
+                        onPressed: _showAddUserDialog,
+                        icon: const Icon(Icons.add, color: Colors.white, size: 24),
+                        tooltip: 'Add User',
+                        padding: const EdgeInsets.all(8),
+                        constraints: const BoxConstraints(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(
+                        showFilters ? Icons.filter_list : Icons.filter_list_outlined, 
+                        color: showFilters ? Colors.blue : Colors.grey.shade700, 
+                        size: 22
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          showFilters = !showFilters;
+                        });
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      tooltip: 'Toggle Filters',
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: Icon(Icons.view_column_outlined, color: Colors.grey.shade700, size: 22),
+                      onPressed: () {},
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+                // Filter dropdowns (shown when showFilters is true)
+                if (showFilters) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Text('Filters:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                      const SizedBox(width: 12),
+                      // Role filter
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(4),
+                          color: Colors.white,
+                        ),
+                        child: DropdownButton<String>(
+                          value: selectedRoleFilter,
+                          hint: const Text('All Roles', style: TextStyle(fontSize: 12)),
+                          underline: const SizedBox(),
+                          isDense: true,
+                          items: ['All', ...roles.map((r) => r.name).toSet()].map((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value == 'All' ? null : value,
+                              child: Text(value, style: const TextStyle(fontSize: 12)),
+                            );
+                          }).toList(),
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              selectedRoleFilter = newValue;
+                              currentPage = 1;
+                            });
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Fakultas filter
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey.shade300),
+                          borderRadius: BorderRadius.circular(4),
+                          color: Colors.white,
+                        ),
+                        child: DropdownButton<String>(
+                          value: selectedFakultasFilter,
+                          hint: const Text('All Fakultas', style: TextStyle(fontSize: 12)),
+                          underline: const SizedBox(),
+                          isDense: true,
+                          items: ['All', 'FSTI', 'FPB', 'FRTI'].map((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value == 'All' ? null : value,
+                              child: Text(value, style: const TextStyle(fontSize: 12)),
+                            );
+                          }).toList(),
+                          onChanged: (String? newValue) {
+                            setState(() {
+                              selectedFakultasFilter = newValue;
+                              currentPage = 1;
+                            });
+                          },
+                        ),
+                      ),
+                      const Spacer(),
+                      if (selectedRoleFilter != null || selectedFakultasFilter != null)
+                        IconButton(
+                          onPressed: () {
+                            setState(() {
+                              selectedRoleFilter = null;
+                              selectedFakultasFilter = null;
+                              currentPage = 1;
+                            });
+                          },
+                          icon: const Icon(Icons.clear, size: 18),
+                          tooltip: 'Clear filters',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                // Add User Button (+ Icon)
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0066CC),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: IconButton(
-                    onPressed: _showAddUserDialog,
-                    icon: const Icon(Icons.add, color: Colors.white, size: 24),
-                    tooltip: 'Add User',
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: Icon(Icons.filter_list, color: Colors.grey.shade700, size: 22),
-                  onPressed: () {},
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: Icon(Icons.view_column_outlined, color: Colors.grey.shade700, size: 22),
-                  onPressed: () {},
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
+                ],
               ],
             ),
           ),
@@ -545,17 +789,19 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 final isSmallScreen = constraints.maxWidth < 600;
                                 return Table(
                                   columnWidths: isSmallScreen ? const {
-                                    0: FixedColumnWidth(35),
-                                    1: FlexColumnWidth(3),
-                                    2: FlexColumnWidth(2),
-                                    3: FlexColumnWidth(2),
-                                    4: FixedColumnWidth(45),
+                                    0: FixedColumnWidth(30),
+                                    1: FlexColumnWidth(2.5),
+                                    2: FlexColumnWidth(1.5),
+                                    3: FlexColumnWidth(1.2),
+                                    4: FlexColumnWidth(1.0),
+                                    5: FixedColumnWidth(70),
                                   } : const {
-                                    0: FixedColumnWidth(40),
-                                    1: FlexColumnWidth(2),
-                                    2: FlexColumnWidth(2),
-                                    3: FlexColumnWidth(2),
-                                    4: FixedColumnWidth(50),
+                                    0: FixedColumnWidth(35),
+                                    1: FlexColumnWidth(2.2),
+                                    2: FlexColumnWidth(1.5),
+                                    3: FlexColumnWidth(1.2),
+                                    4: FlexColumnWidth(1.0),
+                                    5: FixedColumnWidth(80),
                                   },
                                   children: [
                                     TableRow(
@@ -564,6 +810,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                         _buildHeaderCell('Name'),
                                         _buildHeaderCell('ID/NIM'),
                                         _buildHeaderCell('Role'),
+                                        _buildHeaderCell('Fakultas'),
                                         _buildHeaderCell('Actions'),
                                       ],
                                     ),
@@ -585,25 +832,28 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   final isSmallScreen = constraints.maxWidth < 600;
                                   return Table(
                                     columnWidths: isSmallScreen ? const {
-                                      0: FixedColumnWidth(35),
-                                      1: FlexColumnWidth(3),
-                                      2: FlexColumnWidth(2),
-                                      3: FlexColumnWidth(2),
-                                      4: FixedColumnWidth(45),
+                                      0: FixedColumnWidth(30),
+                                      1: FlexColumnWidth(2.5),
+                                      2: FlexColumnWidth(1.5),
+                                      3: FlexColumnWidth(1.2),
+                                      4: FlexColumnWidth(1.0),
+                                      5: FixedColumnWidth(70),
                                     } : const {
-                                      0: FixedColumnWidth(40),
-                                      1: FlexColumnWidth(2),
-                                      2: FlexColumnWidth(2),
-                                      3: FlexColumnWidth(2),
-                                      4: FixedColumnWidth(50),
+                                      0: FixedColumnWidth(35),
+                                      1: FlexColumnWidth(2.2),
+                                      2: FlexColumnWidth(1.5),
+                                      3: FlexColumnWidth(1.2),
+                                      4: FlexColumnWidth(1.0),
+                                      5: FixedColumnWidth(80),
                                     },
                                     children: [
                                     TableRow(
                                       children: [
-                                        _buildDataCell('', isCheckbox: true),
+                                        _buildDataCell('', isCheckbox: true, userId: user.id),
                                         _buildDataCell(user.username),
                                         _buildDataCell(user.nim ?? user.id),
                                         _buildDataCell(user.role?.name ?? '-'),
+                                        _buildDataCell(user.fakultas ?? ''),
                                         _buildActionCell(user),
                                       ],
                                     ),
@@ -702,62 +952,99 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   Widget _buildHeaderCell(String text, {bool isCheckbox = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+      alignment: Alignment.center,
       child: isCheckbox
           ? Checkbox(
-              value: false, 
-              onChanged: (value) {}, 
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, 
+              value: paginatedUsers.isNotEmpty && paginatedUsers.every((user) => selectedUsers.contains(user.id)),
+              onChanged: (value) {
+                setState(() {
+                  if (value == true) {
+                    // Select all users on current page
+                    selectedUsers.addAll(paginatedUsers.map((user) => user.id));
+                  } else {
+                    // Deselect all users on current page
+                    for (var user in paginatedUsers) {
+                      selectedUsers.remove(user.id);
+                    }
+                  }
+                });
+              },
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: const VisualDensity(horizontal: -4, vertical: -4)
             )
           : Text(
-              text, 
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.black87),
+              text,
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black87),
               overflow: TextOverflow.ellipsis,
             ),
     );
   }
 
-  Widget _buildDataCell(String text, {bool isCheckbox = false}) {
+  Widget _buildDataCell(String text, {bool isCheckbox = false, String? userId}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+      alignment: Alignment.center,
       child: isCheckbox
           ? Checkbox(
-              value: false, 
-              onChanged: (value) {}, 
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, 
+              value: userId != null && selectedUsers.contains(userId),
+              onChanged: (value) {
+                setState(() {
+                  if (value == true && userId != null) {
+                    selectedUsers.add(userId);
+                  } else if (userId != null) {
+                    selectedUsers.remove(userId);
+                  }
+                });
+              },
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: const VisualDensity(horizontal: -4, vertical: -4)
             )
           : Text(
-              text, 
-              style: const TextStyle(fontSize: 11, color: Colors.black87), 
+              text,
+              style: const TextStyle(fontSize: 10, color: Colors.black87),
               overflow: TextOverflow.ellipsis,
-              maxLines: 2,
+              maxLines: 1,
             ),
     );
   }
 
   Widget _buildActionCell(UserModel user) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined, size: 18),
-            color: Colors.blue.shade700,
-            onPressed: () => _showEditUserDialog(user),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            tooltip: 'Edit',
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 12),
+      alignment: Alignment.center,
+      child: PopupMenuButton<String>(
+        icon: Icon(Icons.more_vert, size: 18, color: Colors.grey.shade700),
+        padding: EdgeInsets.zero,
+        iconSize: 18,
+        offset: const Offset(0, 40),
+        onSelected: (value) {
+          if (value == 'edit') {
+            _showEditUserDialog(user);
+          } else if (value == 'delete') {
+            _deleteUser(user);
+          }
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem<String>(
+            value: 'edit',
+            child: Row(
+              children: [
+                Icon(Icons.edit_outlined, size: 16, color: Colors.blue.shade700),
+                const SizedBox(width: 8),
+                const Text('Edit', style: TextStyle(fontSize: 13)),
+              ],
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18),
-            color: Colors.red.shade700,
-            onPressed: () => _deleteUser(user),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-            tooltip: 'Delete',
+          PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline, size: 16, color: Colors.red.shade700),
+                const SizedBox(width: 8),
+                const Text('Delete', style: TextStyle(fontSize: 13)),
+              ],
+            ),
           ),
         ],
       ),

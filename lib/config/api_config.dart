@@ -3,7 +3,7 @@ class ApiConfig {
   // For Android Emulator use: http://10.0.2.2:8000
   // For iOS Simulator use: http://localhost:8000
   // For physical device use: http://YOUR_IP_ADDRESS:8000
-  static const String baseUrl = 'http://10.0.2.2:8000';
+  static const String baseUrl = 'http://192.168.0.103:8000';  // Physical device
   
   // Authentication endpoints
   static const String login = '/accounts/login/';
@@ -13,10 +13,32 @@ class ApiConfig {
   // Survey endpoints
   static const String surveys = '/api/surveys/';
   static String surveyDetail(int id) => '/api/surveys/$id/';
+  
+  // Section endpoints
   static String surveySections(int surveyId) => '/api/surveys/$surveyId/sections/';
+  static String sectionDetail(int surveyId, int sectionId) => 
+      '/api/surveys/$surveyId/sections/$sectionId/';
+  
+  // Question endpoints
   static String surveyQuestions(int surveyId, int sectionId) => 
       '/api/surveys/$surveyId/sections/$sectionId/questions/';
+  static String questionDetail(int surveyId, int sectionId, int questionId) =>
+      '/api/surveys/$surveyId/sections/$sectionId/questions/$questionId/';
+  
+  // Program-specific question endpoints
+  static String programSpecificQuestions(int surveyId, int programStudyId) =>
+      '/api/surveys/$surveyId/programs/$programStudyId/questions/';
+  static String programSpecificQuestionDetail(int surveyId, int programStudyId, int questionId) =>
+      '/api/surveys/$surveyId/programs/$programStudyId/questions/$questionId/';
+  
+  // Answer endpoints
   static String surveyAnswers(int surveyId) => '/api/surveys/$surveyId/answers/';
+  static String answerDetail(int surveyId, int answerId) => 
+      '/api/surveys/$surveyId/answers/$answerId/';
+  static String answersByQuestion(int surveyId, int sectionId, int questionId) =>
+      '/api/surveys/$surveyId/sections/$sectionId/questions/$questionId/answers/';
+  static String answersByProgramQuestion(int surveyId, int programStudyId, int questionId) =>
+      '/api/surveys/$surveyId/programs/$programStudyId/questions/$questionId/answers/';
   static String surveyAnswersBulk(int surveyId) => '/api/surveys/$surveyId/answers/bulk/';
   
   // Faculty endpoints
@@ -27,7 +49,7 @@ class ApiConfig {
   static const String departments = '/api/unit/departments/';
   static String departmentDetail(int id) => '/api/unit/departments/$id/';
   
-  // Program Study endpoints
+  // Program Studi endpoints
   static const String programStudies = '/api/unit/program-studies/';
   static String programStudyDetail(int id) => '/api/unit/program-studies/$id/';
   

@@ -24,6 +24,9 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
   int currentPage = 1;
   int itemsPerPage = 10;
   String searchQuery = '';
+  Set<String> selectedEmployees = {}; // Track selected employee IDs for checkboxes
+  String? selectedDepartmentFilter; // Filter by department
+  bool showFilters = false; // Toggle filter visibility
 
   @override
   void initState() {
@@ -54,14 +57,120 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     }
   }
 
+  Future<void> _deleteEmployee(Map<String, dynamic> employee) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Employee'),
+        content: Text('Are you sure you want to delete ${employee['name']}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      try {
+        await DatabaseHelper.instance.deleteEmployee(employee['id']);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Employee deleted successfully'), backgroundColor: Colors.green),
+          );
+        }
+        _loadEmployees();
+        setState(() {
+          selectedEmployees.remove(employee['id']?.toString());
+        });
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _deleteSelectedEmployees() async {
+    if (selectedEmployees.isEmpty) return;
+    
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Employees'),
+        content: Text('Are you sure you want to delete ${selectedEmployees.length} selected employee(s)?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirm != true || !mounted) return;
+    
+    try {
+      for (final id in selectedEmployees) {
+        await DatabaseHelper.instance.deleteEmployee(int.parse(id));
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${selectedEmployees.length} employee(s) deleted successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      
+      setState(() {
+        selectedEmployees.clear();
+      });
+      
+      _loadEmployees();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   List<Map<String, dynamic>> get filteredEmployees {
-    if (searchQuery.isEmpty) return employees;
-    return employees.where((employee) {
-      final name = employee['name']?.toString().toLowerCase() ?? '';
-      final email = employee['email']?.toString().toLowerCase() ?? '';
-      final query = searchQuery.toLowerCase();
-      return name.contains(query) || email.contains(query);
-    }).toList();
+    var filtered = employees;
+    
+    // Apply search filter
+    if (searchQuery.isNotEmpty) {
+      filtered = filtered.where((employee) {
+        final name = employee['name']?.toString().toLowerCase() ?? '';
+        final email = employee['email']?.toString().toLowerCase() ?? '';
+        final query = searchQuery.toLowerCase();
+        return name.contains(query) || email.contains(query);
+      }).toList();
+    }
+    
+    // Apply department filter
+    if (selectedDepartmentFilter != null && selectedDepartmentFilter != 'All') {
+      filtered = filtered.where((employee) => 
+        employee['prodi']?.toString() == selectedDepartmentFilter
+      ).toList();
+    }
+    
+    return filtered;
   }
 
   List<Map<String, dynamic>> get paginatedEmployees {
@@ -93,12 +202,22 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      key: _scaffoldKey,
-      backgroundColor: Colors.white,
-      appBar: AppBar(
+    return WillPopScope(
+      onWillPop: () async {
+        // Navigate back to home/dashboard instead of stacking
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomePage()),
+          (route) => false,
+        );
+        return false;
+      },
+      child: Scaffold(
+        key: _scaffoldKey,
         backgroundColor: Colors.white,
-        elevation: 0,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () {
@@ -154,23 +273,21 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: Colors.black87,
-              size: 20,
+          if (selectedEmployees.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 22),
+              tooltip: 'Delete selected employees (${selectedEmployees.length})',
+              onPressed: _deleteSelectedEmployees,
             ),
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: Colors.black87, size: 22),
             onPressed: () {},
-            padding: const EdgeInsets.all(8),
-            constraints: const BoxConstraints(),
           ),
           IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black87, size: 20),
+            icon: const Icon(Icons.menu, color: Colors.black87, size: 22),
             onPressed: () {
               _scaffoldKey.currentState?.openEndDrawer();
             },
-            padding: const EdgeInsets.all(8),
-            constraints: const BoxConstraints(),
           ),
         ],
       ),
@@ -308,13 +425,12 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                               icon: Icons.folder_outlined,
                               title: 'User Management',
                               onTap: () {
-                                Navigator.pop(context);
-                                Navigator.pushReplacement(
+                                Navigator.pushAndRemoveUntil(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) =>
-                                        const UserManagementPage(),
+                                    builder: (context) => const UserManagementPage(),
                                   ),
+                                  (route) => false,
                                 );
                               },
                             ),
@@ -337,16 +453,15 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                           title: 'Questionnaire',
                           children: [
                             _buildSubMenuItem(
-                              icon: Icons.poll_outlined,
+                              icon: Icons.dashboard_outlined,
                               title: 'Survey Management',
                               onTap: () {
-                                Navigator.pop(context);
-                                Navigator.pushReplacement(
+                                Navigator.pushAndRemoveUntil(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) =>
-                                        const SurveyManagementPage(),
+                                    builder: (context) => const SurveyManagementPage(),
                                   ),
+                                  (route) => false,
                                 );
                               },
                             ),
@@ -354,12 +469,12 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                               icon: Icons.assignment_outlined,
                               title: 'Take Questionnaire',
                               onTap: () {
-                                Navigator.pop(context);
-                                Navigator.push(
+                                Navigator.pushAndRemoveUntil(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) => const QuestionnaireListPage(),
                                   ),
+                                  (route) => false,
                                 );
                               },
                             ),
@@ -372,17 +487,33 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                           icon: Icons.assignment_outlined,
                           title: 'Take Questionnaire',
                           onTap: () {
-                            Navigator.pop(context);
-                            Navigator.pushReplacement(
+                            Navigator.pushAndRemoveUntil(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const HomePage(),
+                                builder: (context) => const QuestionnaireListPage(),
                               ),
+                              (route) => false,
                             );
                           },
                         ),
 
-                      const SizedBox(height: 20),
+                      const Divider(height: 32),
+                      
+                      // Profile
+                      _buildDrawerItem(
+                        icon: Icons.person,
+                        title: 'My Profile',
+                        onTap: () {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Profile page coming soon')),
+                          );
+                        },
+                      ),
+                      
+                      const SizedBox(height: 8),
+                      
+                      // Logout
                       _buildDrawerItem(
                         icon: Icons.logout,
                         title: 'Logout',
@@ -430,6 +561,52 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                 ],
               ),
             ),
+            if (showFilters)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text('Department: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButton<String>(
+                            value: selectedDepartmentFilter,
+                            isExpanded: true,
+                            hint: const Text('All', style: TextStyle(fontSize: 12)),
+                            items: ['All', ...employees.map((e) => e['prodi']?.toString() ?? '').where((s) => s.isNotEmpty).toSet().toList()]
+                                .map((dept) => DropdownMenuItem(value: dept == 'All' ? null : dept, child: Text(dept, style: const TextStyle(fontSize: 12))))
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                selectedDepartmentFilter = value;
+                                currentPage = 1;
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          tooltip: 'Clear filters',
+                          onPressed: () {
+                            setState(() {
+                              selectedDepartmentFilter = null;
+                              currentPage = 1;
+                            });
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
@@ -507,10 +684,14 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                   IconButton(
                     icon: Icon(
                       Icons.filter_list,
-                      color: Colors.grey.shade700,
+                      color: showFilters ? Colors.blue : Colors.grey.shade700,
                       size: 20,
                     ),
-                    onPressed: () {},
+                    onPressed: () {
+                      setState(() {
+                        showFilters = !showFilters;
+                      });
+                    },
                     padding: const EdgeInsets.all(8),
                     constraints: const BoxConstraints(
                       minWidth: 36,
@@ -556,23 +737,23 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                                   ),
                                 ),
                               ),
-                              child: Row(
+                              child: Table(
+                                columnWidths: const {
+                                  0: FixedColumnWidth(35),
+                                  1: FlexColumnWidth(2.2),
+                                  2: FlexColumnWidth(1.5),
+                                  3: FlexColumnWidth(1.2),
+                                  4: FixedColumnWidth(80),
+                                },
                                 children: [
-                                  Expanded(
-                                    flex: 3,
-                                    child: _buildHeaderCell('Name'),
-                                  ),
-                                  Expanded(
-                                    flex: 3,
-                                    child: _buildHeaderCell('Email'),
-                                  ),
-                                  Expanded(
-                                    flex: 2,
-                                    child: _buildHeaderCell('Access'),
-                                  ),
-                                  SizedBox(
-                                    width: 60,
-                                    child: _buildHeaderCell('Actions'),
+                                  TableRow(
+                                    children: [
+                                      _buildHeaderCell('', isCheckbox: true),
+                                      _buildHeaderCell('Name'),
+                                      _buildHeaderCell('Email'),
+                                      _buildHeaderCell('Access'),
+                                      _buildHeaderCell('Actions'),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -695,26 +876,45 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
           ],
         ),
       ),
-    );
+      ), // Close WillPopScope child
+    ); // Close WillPopScope
   }
 
-  Widget _buildHeaderCell(String title) {
+  Widget _buildHeaderCell(String text, {bool isCheckbox = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: Colors.black87,
-        ),
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+      alignment: Alignment.center,
+      child: isCheckbox
+          ? Checkbox(
+              value: paginatedEmployees.isNotEmpty && paginatedEmployees.every((emp) => selectedEmployees.contains(emp['id']?.toString())),
+              onChanged: (value) {
+                setState(() {
+                  if (value == true) {
+                    // Select all employees on current page
+                    selectedEmployees.addAll(paginatedEmployees.map((emp) => emp['id']?.toString() ?? ''));
+                  } else {
+                    // Deselect all employees on current page
+                    for (var emp in paginatedEmployees) {
+                      selectedEmployees.remove(emp['id']?.toString());
+                    }
+                  }
+                });
+              },
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: const VisualDensity(horizontal: -4, vertical: -4)
+            )
+          : Text(
+              text,
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black87),
+              overflow: TextOverflow.ellipsis,
+            ),
     );
   }
 
   Widget _buildEmployeeRow(Map<String, dynamic> employee) {
     final name = employee['name']?.toString() ?? 'Unknown';
     final email = employee['email']?.toString() ?? 'N/A';
+    final employeeId = employee['id']?.toString() ?? '';
     // Get role and format display
     final role = employee['role']?.toString() ?? 'surveyor';
     final prodi = employee['prodi']?.toString();
@@ -738,81 +938,96 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Table(
+            columnWidths: const {
+              0: FixedColumnWidth(35),
+              1: FlexColumnWidth(2.2),
+              2: FlexColumnWidth(1.5),
+              3: FlexColumnWidth(1.2),
+              4: FixedColumnWidth(80),
+            },
+            children: [
+              TableRow(
                 children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Center(
-                      child: Text(
-                        name
-                            .split(' ')
-                            .map((e) => e.isNotEmpty ? e[0] : '')
-                            .take(2)
-                            .join()
-                            .toUpperCase(),
-                        style: TextStyle(
-                          color: Colors.blue[700],
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      name,
-                      style: const TextStyle(fontSize: 13),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
+                  _buildDataCell('', isCheckbox: true, employeeId: employeeId),
+                  _buildDataCell(name),
+                  _buildDataCell(email),
+                  _buildDataCell(accessDisplay),
+                  _buildActionCell(employee),
                 ],
               ),
+            ],
+          );
+        }
+      ),
+    );
+  }
+
+  Widget _buildDataCell(String text, {bool isCheckbox = false, String? employeeId}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+      alignment: Alignment.center,
+      child: isCheckbox
+          ? Checkbox(
+              value: employeeId != null && selectedEmployees.contains(employeeId),
+              onChanged: (value) {
+                setState(() {
+                  if (value == true && employeeId != null) {
+                    selectedEmployees.add(employeeId);
+                  } else if (employeeId != null) {
+                    selectedEmployees.remove(employeeId);
+                  }
+                });
+              },
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: const VisualDensity(horizontal: -4, vertical: -4)
+            )
+          : Text(
+              text,
+              style: const TextStyle(fontSize: 10, color: Colors.black87),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+    );
+  }
+
+  Widget _buildActionCell(Map<String, dynamic> employee) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 12),
+      alignment: Alignment.center,
+      child: PopupMenuButton<String>(
+        icon: Icon(Icons.more_vert, size: 18, color: Colors.grey.shade700),
+        padding: EdgeInsets.zero,
+        iconSize: 18,
+        offset: const Offset(0, 40),
+        onSelected: (value) {
+          if (value == 'edit') {
+            _navigateToEmployeeEdit(employee: employee);
+          } else if (value == 'delete') {
+            _deleteEmployee(employee);
+          }
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem<String>(
+            value: 'edit',
+            child: Row(
+              children: [
+                Icon(Icons.edit, size: 16, color: Colors.blue[600]),
+                const SizedBox(width: 8),
+                const Text('Edit', style: TextStyle(fontSize: 13)),
+              ],
             ),
           ),
-          Expanded(
-            flex: 3,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: Text(
-                email,
-                style: const TextStyle(fontSize: 13, color: Colors.black87),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              child: Text(
-                accessDisplay,
-                style: const TextStyle(fontSize: 13, color: Colors.black87),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ),
-          SizedBox(
-            width: 60,
-            child: Center(
-              child: IconButton(
-                icon: Icon(Icons.edit, size: 18, color: Colors.blue[600]),
-                onPressed: () => _navigateToEmployeeEdit(employee: employee),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                tooltip: 'Edit',
-              ),
+          const PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete, size: 16, color: Colors.red),
+                SizedBox(width: 8),
+                Text('Delete', style: TextStyle(fontSize: 13, color: Colors.red)),
+              ],
             ),
           ),
         ],

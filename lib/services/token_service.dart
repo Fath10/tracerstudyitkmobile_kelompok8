@@ -7,6 +7,8 @@ class TokenService {
   static const String _accessTokenKey = 'access_token';
   static const String _refreshTokenKey = 'refresh_token';
   static const String _userDataKey = 'user_data';
+  static const String _rememberedUserIdKey = 'remembered_user_id';
+  static const String _rememberMeKey = 'remember_me';
 
   // Save tokens
   static Future<void> saveTokens({
@@ -73,12 +75,36 @@ class TokenService {
     }
   }
 
+  // Save remember me preference and user ID
+  static Future<void> saveRememberMe(bool rememberMe, String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_rememberMeKey, rememberMe);
+    if (rememberMe) {
+      await prefs.setString(_rememberedUserIdKey, userId);
+    } else {
+      await prefs.remove(_rememberedUserIdKey);
+    }
+  }
+
+  // Get remember me preference
+  static Future<bool> getRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_rememberMeKey) ?? false;
+  }
+
+  // Get remembered user ID
+  static Future<String?> getRememberedUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_rememberedUserIdKey);
+  }
+
   // Clear all tokens and user data
   static Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_accessTokenKey);
     await prefs.remove(_refreshTokenKey);
     await prefs.remove(_userDataKey);
+    // Don't clear remember me settings on logout
   }
 
   // Check if user is logged in

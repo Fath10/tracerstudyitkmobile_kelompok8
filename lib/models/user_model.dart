@@ -28,6 +28,15 @@ class RoleModel {
       'program_study': programStudyId,
     };
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is RoleModel && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 // Program Study Model
@@ -63,6 +72,15 @@ class ProgramStudyModel {
       'department': departmentId,
     };
   }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is ProgramStudyModel && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 // Faculty Model
@@ -133,6 +151,7 @@ class UserModel {
   final String? address;
   final String? phoneNumber;
   final String lastSurvey;
+  final String? plainPassword;
 
   UserModel({
     required this.id,
@@ -144,7 +163,43 @@ class UserModel {
     this.address,
     this.phoneNumber,
     this.lastSurvey = 'none',
+    this.plainPassword,
   });
+
+  // Auto-calculate fakultas based on program study
+  String? get fakultas {
+    if (programStudy == null) return null;
+    
+    final prodiName = programStudy!.name;
+    
+    // FSTI Programs
+    const fstiPrograms = [
+      'Matematika', 'Ilmu Aktuaria', 'Statistika', 'Fisika',
+      'Informatika', 'Sistem Informasi', 'Bisnis Digital', 'Teknik Elektro'
+    ];
+    
+    // FPB Programs
+    const fpbPrograms = [
+      'Teknik Perkapalan', 'Teknik Kelautan', 'Teknik Lingkungan', 'Teknik Sipil',
+      'Perencanaan Wilayah dan Kota', 'Arsitektur', 'Desain Komunikasi dan Visual'
+    ];
+    
+    // FRTI Programs
+    const frtiPrograms = [
+      'Teknik Mesin', 'Teknik Industri', 'Teknik Logistik', 'Teknik Material dan Metalurgi',
+      'Teknologi Pangan', 'Teknik Kimia', 'Rekayasa Keselamatan'
+    ];
+    
+    if (fstiPrograms.contains(prodiName)) {
+      return 'FSTI';
+    } else if (fpbPrograms.contains(prodiName)) {
+      return 'FPB';
+    } else if (frtiPrograms.contains(prodiName)) {
+      return 'FRTI';
+    } else {
+      return null;
+    }
+  }
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(
@@ -161,6 +216,7 @@ class UserModel {
       address: json['address'],
       phoneNumber: json['phone_number'],
       lastSurvey: json['last_survey'] ?? 'none',
+      plainPassword: json['plain_password'],
     );
   }
 

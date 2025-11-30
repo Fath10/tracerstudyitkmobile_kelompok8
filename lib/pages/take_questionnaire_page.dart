@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'home_page.dart';
+import 'login_page.dart';
 import '../services/survey_storage.dart';
 import '../database/database_helper.dart';
 import '../services/auth_service.dart';
@@ -22,16 +23,38 @@ class TakeQuestionnairePage extends StatefulWidget {
 }
 
 class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _nimController = TextEditingController();
+  final PageController _sectionPageController = PageController();
   
   // Store answers for each question
   final Map<int, dynamic> _answers = {};
   bool _isSubmitting = false;
+  int _currentSectionIndex = 0;
 
-  // Get questions for this survey
-  List<Map<String, dynamic>> get _surveyQuestions {
+  // Get sections for this survey
+  List<Map<String, dynamic>> get _surveySections {
+    if (widget.survey['sections'] != null && (widget.survey['sections'] as List).isNotEmpty) {
+      return List<Map<String, dynamic>>.from(widget.survey['sections']);
+    }
+    
+    // If no sections but has questions, create a default section
+    final questions = _getSurveyQuestions();
+    return [
+      {
+        'id': 'section_1',
+        'title': 'Section 1',
+        'description': '',
+        'order': 0,
+        'questions': questions,
+      }
+    ];
+  }
+
+  // Get questions for this survey (backward compatibility)
+  List<Map<String, dynamic>> _getSurveyQuestions() {
     if (widget.questions != null) {
       return widget.questions!;
     }
@@ -45,10 +68,20 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
     return SurveyStorage.getDefaultQuestions();
   }
 
+  // Get all questions across all sections (for validation and submission)
+  List<Map<String, dynamic>> get _allQuestions {
+    final allQuestions = <Map<String, dynamic>>[];
+    for (var section in _surveySections) {
+      allQuestions.addAll(List<Map<String, dynamic>>.from(section['questions'] ?? []));
+    }
+    return allQuestions;
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
     _nimController.dispose();
+    _sectionPageController.dispose();
     super.dispose();
   }
 
@@ -56,16 +89,14 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Scaffold(
+        key: _scaffoldKey,
         backgroundColor: const Color(0xFFF8F9FA),
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black87),
-            onPressed: () {
-              // Use normal back navigation
-              Navigator.pop(context);
-            },
+            onPressed: () => Navigator.pop(context),
           ),
           title: Row(
             children: [
@@ -110,67 +141,304 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
               ),
             ],
           ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined, color: Colors.black87, size: 22),
+              onPressed: () {},
+            ),
+            IconButton(
+              icon: const Icon(Icons.menu, color: Colors.black87, size: 22),
+              onPressed: () {
+                _scaffoldKey.currentState?.openEndDrawer();
+              },
+            ),
+          ],
         ),
-        body: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+        endDrawer: Drawer(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.blue[400]!, Colors.blue[600]!],
+              ),
+            ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Survey Header Card
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border(
-                      top: BorderSide(color: Colors.blue[600]!, width: 4),
+                // Close button
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, top: 40, right: 16),
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.1),
-                        spreadRadius: 1,
-                        blurRadius: 3,
-                        offset: const Offset(0, 1),
-                      ),
-                    ],
                   ),
+                ),
+
+                // User profile section
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        widget.survey['name'] ?? 'Survey',
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w400,
-                          color: Colors.black87,
+                      // Avatar
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.3),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
                         ),
-                      ),
-                      if (widget.survey['description'] != null && 
-                          widget.survey['description'].toString().isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          widget.survey['description'],
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[700],
-                            height: 1.4,
+                        child: Center(
+                          child: Text(
+                            (AuthService.currentUser?.username ?? 'U').substring(0, 1).toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // User name
+                      Text(
+                        AuthService.currentUser?.username ?? 'Your Name',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+
+                      // User ID/Email
+                      Text(
+                        AuthService.currentUser?.nim ?? AuthService.currentUser?.email ?? '11221044',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 14,
+                        ),
+                      ),
                     ],
                   ),
                 ),
+
+                const SizedBox(height: 20),
+
+                // Menu items
+                Expanded(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(30),
+                        topRight: Radius.circular(30),
+                      ),
+                    ),
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      children: [
+                        // Dashboard for employees
+                        if (AuthService.isAdmin || AuthService.isSurveyor || AuthService.isTeamProdi)
+                          _buildDrawerItem(
+                            icon: Icons.dashboard,
+                            title: 'Dashboard',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(builder: (context) => const HomePage()),
+                              );
+                            },
+                          ),
+
+                        // Users (alumni) - show Take Questionnaire option
+                        if (AuthService.isUser)
+                          _buildDrawerItem(
+                            icon: Icons.assignment_outlined,
+                            title: 'Take Questionnaire',
+                            onTap: () {
+                              Navigator.pop(context);
+                              // Already on questionnaire page
+                            },
+                          ),
+
+                        const Divider(height: 32),
+                        
+                        // Profile
+                        _buildDrawerItem(
+                          icon: Icons.person,
+                          title: 'My Profile',
+                          onTap: () {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Profile page coming soon')),
+                            );
+                          },
+                        ),
+                        
+                        const SizedBox(height: 8),
+                        
+                        // Logout
+                        _buildDrawerItem(
+                          icon: Icons.logout,
+                          title: 'Logout',
+                          onTap: () {
+                            Navigator.pushAndRemoveUntil(
+                              context,
+                              MaterialPageRoute(builder: (context) => const LoginPage()),
+                              (route) => false,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        body: Column(
+          children: [
+            // Section Navigation Slider (if multiple sections)
+            if (_surveySections.length > 1) _buildSectionNavigator(),
+            
+            // Main Content
+            Expanded(
+              child: Form(
+                key: _formKey,
+                child: PageView.builder(
+                  controller: _sectionPageController,
+                  itemCount: _surveySections.length,
+                  onPageChanged: (index) {
+                    setState(() {
+                      _currentSectionIndex = index;
+                    });
+                  },
+                  itemBuilder: (context, sectionIndex) {
+                    final section = _surveySections[sectionIndex];
+                    final sectionQuestions = List<Map<String, dynamic>>.from(section['questions'] ?? []);
+                    
+                    // Calculate cumulative question number offset for this section
+                    int questionOffset = 0;
+                    for (int i = 0; i < sectionIndex; i++) {
+                      questionOffset += (_surveySections[i]['questions'] as List?)?.length ?? 0;
+                    }
+                    
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Survey Header Card (only on first section)
+                          if (sectionIndex == 0) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border(
+                                  top: BorderSide(color: Colors.blue[600]!, width: 4),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.1),
+                                    spreadRadius: 1,
+                                    blurRadius: 3,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    widget.survey['name'] ?? 'Survey',
+                                    style: const TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w400,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  if (widget.survey['description'] != null && 
+                                      widget.survey['description'].toString().isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      widget.survey['description'],
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey[700],
+                                        height: 1.4,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 16),
+                          ],
+                          
+                          // Section Header (if not first section or if multiple sections)
+                          if (sectionIndex > 0 || _surveySections.length > 1) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.1),
+                                    spreadRadius: 1,
+                                    blurRadius: 3,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    section['title'] ?? 'Section ${sectionIndex + 1}',
+                                    style: const TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  if (section['description'] != null && 
+                                      section['description'].toString().isNotEmpty) ...[
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      section['description'],
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            
+                            const SizedBox(height: 16),
+                          ],
                 
-                const SizedBox(height: 16),
-                
-                // Respondent Information Card
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
+                          // Respondent Information Card (only on first section)
+                          if (sectionIndex == 0) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
@@ -251,129 +519,181 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
                     ],
                   ),
                 ),
-                
-                const SizedBox(height: 16),
-                
-                // Questions
-                ...List.generate(_surveyQuestions.length, (index) {
-                  final question = _surveyQuestions[index];
-                  final questionId = question['id'] ?? index;
-                  
-                  return Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
-                          spreadRadius: 1,
-                          blurRadius: 3,
-                          offset: const Offset(0, 1),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Question Text
-                        RichText(
-                          text: TextSpan(
-                            children: [
-                              TextSpan(
-                                text: '${index + 1}. ',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black87,
-                                ),
+                            
+                            const SizedBox(height: 16),
+                          ],
+                          
+                          // Questions for this section
+                          ...List.generate(sectionQuestions.length, (index) {
+                            final question = sectionQuestions[index];
+                            final questionId = question['id'] ?? index;
+                            
+                            return Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 16),
+                              padding: const EdgeInsets.all(24),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.1),
+                                    spreadRadius: 1,
+                                    blurRadius: 3,
+                                    offset: const Offset(0, 1),
+                                  ),
+                                ],
                               ),
-                              TextSpan(
-                                text: question['question'] ?? 'Question ${index + 1}',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w400,
-                                  color: Colors.black87,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Question Text
+                                  RichText(
+                                    text: TextSpan(
+                                      children: [
+                                        TextSpan(
+                                          text: '${questionOffset + index + 1}. ',
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        TextSpan(
+                                          text: question['question'] ?? 'Question ${questionOffset + index + 1}',
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w400,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        const TextSpan(
+                                          text: ' *',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            color: Colors.red,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  
+                                  const SizedBox(height: 16),
+                                  
+                                  // Question Input based on type
+                                  _buildQuestionInput(question, questionId),
+                                ],
                               ),
-                              const TextSpan(
-                                text: ' *',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.red,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        
-                        const SizedBox(height: 16),
-                        
-                        // Question Input based on type
-                        _buildQuestionInput(question, questionId),
-                      ],
-                    ),
-                  );
-                }),
+                            );
+                          }),
+                          
+                          const SizedBox(height: 24),
                 
-                const SizedBox(height: 24),
-                
-                // Submit Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isSubmitting ? null : _submitSurvey,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[600],
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: _isSubmitting
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          // Navigation buttons for sections
+                          if (_surveySections.length > 1)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                if (sectionIndex > 0)
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      _sectionPageController.previousPage(
+                                        duration: const Duration(milliseconds: 300),
+                                        curve: Curves.easeInOut,
+                                      );
+                                    },
+                                    icon: const Icon(Icons.arrow_back, size: 18),
+                                    label: const Text('Previous'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.grey[600],
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                    ),
+                                  ),
+                                const Spacer(),
+                                if (sectionIndex < _surveySections.length - 1)
+                                  ElevatedButton.icon(
+                                    onPressed: () {
+                                      _sectionPageController.nextPage(
+                                        duration: const Duration(milliseconds: 300),
+                                        curve: Curves.easeInOut,
+                                      );
+                                    },
+                                    icon: const Icon(Icons.arrow_forward, size: 18),
+                                    label: const Text('Next'),
+                                    iconAlignment: IconAlignment.end,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.blue[600],
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                    ),
+                                  ),
+                              ],
                             ),
-                          )
-                        : const Text(
-                            'Submit',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
+                          
+                          const SizedBox(height: 16),
+                          
+                          // Submit Button (only on last section)
+                          if (sectionIndex == _surveySections.length - 1) ...[
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _isSubmitting ? null : _submitSurvey,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue[600],
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  elevation: 0,
+                                ),
+                                child: _isSubmitting
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                        ),
+                                      )
+                                    : const Text(
+                                        'Submit',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                              ),
                             ),
-                          ),
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                // Clear Form Button
-                SizedBox(
-                  width: double.infinity,
-                  child: TextButton(
-                    onPressed: _clearForm,
-                    child: Text(
-                      'Clear form',
-                      style: TextStyle(
-                        color: Colors.blue[600],
-                        fontSize: 14,
+                            
+                            const SizedBox(height: 16),
+                            
+                            // Clear Form Button
+                            SizedBox(
+                              width: double.infinity,
+                              child: TextButton(
+                                onPressed: _clearForm,
+                                child: Text(
+                                  'Clear form',
+                                  style: TextStyle(
+                                    color: Colors.blue[600],
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                          
+                          const SizedBox(height: 32),
+                        ],
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
-                
-                const SizedBox(height: 32),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -582,6 +902,75 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
     });
   }
 
+  Widget _buildSectionNavigator() {
+    return Container(
+      height: 60,
+      color: Colors.white,
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              itemCount: _surveySections.length,
+              itemBuilder: (context, index) {
+                final section = _surveySections[index];
+                final isSelected = _currentSectionIndex == index;
+                
+                return GestureDetector(
+                  onTap: () {
+                    _sectionPageController.animateToPage(
+                      index,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.blue[600] : Colors.grey[200],
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Center(
+                      child: Text(
+                        section['title'] ?? 'Section ${index + 1}',
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : Colors.black87,
+                          fontSize: 13,
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Container(
+            height: 3,
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: List.generate(_surveySections.length, (index) {
+                return Expanded(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                    decoration: BoxDecoration(
+                      color: index <= _currentSectionIndex
+                          ? Colors.blue[600]
+                          : Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submitSurvey() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -600,12 +989,12 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
     }
 
     // Check if all questions are answered
-    for (int i = 0; i < _surveyQuestions.length; i++) {
-      final questionId = _surveyQuestions[i]['id'] ?? i;
+    for (int i = 0; i < _allQuestions.length; i++) {
+      final questionId = _allQuestions[i]['id'] ?? i;
       if (!_answers.containsKey(questionId) || _answers[questionId] == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Please answer question ${i + 1}'),
+            content: Text('Please answer all questions in all sections'),
             backgroundColor: Colors.red,
           ),
         );
@@ -673,5 +1062,28 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
         });
       }
     }
+  }
+
+  Widget _buildDrawerItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: Colors.grey[700]),
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+        ),
+        onTap: onTap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 }

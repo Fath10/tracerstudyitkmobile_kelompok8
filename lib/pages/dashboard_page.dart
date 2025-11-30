@@ -410,6 +410,9 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildChartPlaceholder(String title, String chartType) {
+    // Check if we have responses to display
+    final hasData = _responses.isNotEmpty;
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
@@ -450,22 +453,30 @@ class _DashboardPageState extends State<DashboardPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.insert_chart, size: 32, color: Colors.grey[400]),
+                  Icon(
+                    hasData ? Icons.insert_chart : Icons.bar_chart_outlined,
+                    size: 32,
+                    color: hasData ? Colors.blue[300] : Colors.grey[400],
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     chartType,
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.grey[500],
+                      fontWeight: FontWeight.w600,
+                      color: hasData ? Colors.blue[600] : Colors.grey[500],
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Data akan ditampilkan di sini',
+                    hasData 
+                        ? 'Grafik akan ditampilkan berdasarkan ${_responses.length} responden'
+                        : 'Belum ada data responden',
                     style: TextStyle(
                       fontSize: 10,
-                      color: Colors.grey[400],
+                      color: hasData ? Colors.blue[400] : Colors.grey[400],
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),

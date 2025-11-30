@@ -5,7 +5,7 @@ class UserFormPage extends StatefulWidget {
   final UserModel? user;
   final List<RoleModel> roles;
   final List<ProgramStudyModel> programStudies;
-  final Function(UserModel) onSave;
+  final Function(dynamic) onSave;
 
   const UserFormPage({
     super.key,
@@ -27,6 +27,7 @@ class _UserFormPageState extends State<UserFormPage> {
   late TextEditingController _emailController;
   late TextEditingController _phoneController;
   late TextEditingController _addressController;
+  late TextEditingController _passwordController;
   
   RoleModel? _selectedRole;
   ProgramStudyModel? _selectedProgramStudy;
@@ -42,6 +43,9 @@ class _UserFormPageState extends State<UserFormPage> {
     _phoneController = TextEditingController(text: widget.user?.phoneNumber ?? '');
     _addressController = TextEditingController(text: widget.user?.address ?? '');
     
+    // Show plain password in edit mode, empty for new user
+    _passwordController = TextEditingController(text: widget.user?.plainPassword ?? '');
+    
     if (widget.user != null) {
       _selectedRole = widget.user!.role;
       _selectedProgramStudy = widget.user!.programStudy;
@@ -56,6 +60,7 @@ class _UserFormPageState extends State<UserFormPage> {
     _emailController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -65,18 +70,26 @@ class _UserFormPageState extends State<UserFormPage> {
     setState(() => _isLoading = true);
 
     try {
-      final user = UserModel(
-        id: _idController.text.trim(), // ID is always required (backend primary key)
-        username: _usernameController.text.trim(),
-        nim: _nimController.text.trim().isEmpty ? null : _nimController.text.trim(),
-        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
-        phoneNumber: _phoneController.text.trim(),
-        address: _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
-        role: _selectedRole,
-        programStudy: _selectedProgramStudy,
-      );
-
-      await widget.onSave(user);
+      final userData = {
+        'id': _idController.text.trim(),
+        'username': _usernameController.text.trim(),
+        'nim': _nimController.text.trim().isEmpty ? null : _nimController.text.trim(),
+        'email': _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
+        'phone_number': _phoneController.text.trim(),
+        'address': _addressController.text.trim().isEmpty ? null : _addressController.text.trim(),
+        'role_id': _selectedRole?.id,  // Use role_id for write operations
+        'program_study_id': _selectedProgramStudy?.id,  // Use program_study_id for write operations
+      };
+      
+      // Only send password if user provided one
+      // Backend will generate default if not provided
+      final password = _passwordController.text.trim();
+      if (password.isNotEmpty) {
+        userData['password'] = password;
+      }
+      
+      // Pass userData map to preserve password field
+      await widget.onSave(userData);
       
       if (mounted) {
         Navigator.pop(context);
@@ -105,11 +118,12 @@ class _UserFormPageState extends State<UserFormPage> {
         foregroundColor: Colors.black,
         elevation: 0,
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+            children: [
             // User ID field - required for creation (backend uses it as primary key)
             TextFormField(
               controller: _idController,
@@ -143,17 +157,6 @@ class _UserFormPageState extends State<UserFormPage> {
                 }
                 return null;
               },
-            ),
-            const SizedBox(height: 16),
-
-            // NIM
-            TextFormField(
-              controller: _nimController,
-              decoration: const InputDecoration(
-                labelText: 'NIM',
-                hintText: 'Enter NIM (optional)',
-                border: OutlineInputBorder(),
-              ),
             ),
             const SizedBox(height: 16),
 
@@ -192,7 +195,22 @@ class _UserFormPageState extends State<UserFormPage> {
                 return null;
               },
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
+
+            // Password field - always visible, no hiding
+            TextFormField(
+              controller: _passwordController,
+              decoration: InputDecoration(
+                labelText: 'Password',
+                hintText: 'Enter password',
+                border: const OutlineInputBorder(),
+                helperText: isEdit 
+                  ? 'Current password shown, edit to change'
+                  : 'Leave blank for default (UserID-PhoneNumber) or enter custom',
+                helperMaxLines: 2,
+              ),
+            ),
+            const SizedBox(height: 20),
 
             // Role
             DropdownButtonFormField<RoleModel>(
@@ -218,13 +236,13 @@ class _UserFormPageState extends State<UserFormPage> {
             ),
             const SizedBox(height: 16),
 
-            // Program Study
+            // Program Studi
             DropdownButtonFormField<ProgramStudyModel>(
               value: _selectedProgramStudy,
               decoration: InputDecoration(
-                labelText: 'Program Study',
+                labelText: 'Program Studi',
                 border: const OutlineInputBorder(),
-                helperText: widget.programStudies.isEmpty ? 'No program studies available' : null,
+                helperText: widget.programStudies.isEmpty ? 'No program studi available' : null,
               ),
               items: widget.programStudies.isEmpty
                   ? null
@@ -252,7 +270,31 @@ class _UserFormPageState extends State<UserFormPage> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+
+            // Password generation info
+            if (!isEdit)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  border: Border.all(color: Colors.blue.shade200),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Default password will be: UserID-PhoneNumber\n(Example: 11221044-081234567890)',
+                        style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 32),
 
             // Save Button
             ElevatedButton(
@@ -261,6 +303,7 @@ class _UserFormPageState extends State<UserFormPage> {
                 backgroundColor: const Color(0xFF0066CC),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
+                minimumSize: const Size(double.infinity, 50),
               ),
               child: _isLoading
                   ? const SizedBox(
@@ -275,6 +318,7 @@ class _UserFormPageState extends State<UserFormPage> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'home_page.dart';
 import '../database/database_helper.dart';
 import '../services/auth_service.dart';
+import '../services/token_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,6 +18,26 @@ class _LoginPageState extends State<LoginPage> {
   bool _rememberMe = true;
   bool _obscurePassword = true;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberedCredentials();
+  }
+
+  Future<void> _loadRememberedCredentials() async {
+    final rememberMe = await TokenService.getRememberMe();
+    final userId = await TokenService.getRememberedUserId();
+    
+    if (mounted) {
+      setState(() {
+        _rememberMe = rememberMe;
+        if (rememberMe && userId != null) {
+          _emailController.text = userId;
+        }
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -42,6 +63,9 @@ class _LoginPageState extends State<LoginPage> {
         
         if (backendSuccess) {
           // Backend login successful
+          // Save remember me preference
+          await TokenService.saveRememberMe(_rememberMe, username);
+          
           final userMap = AuthService.currentUserMap;
           if (userMap != null) {
             Navigator.pushReplacement(
@@ -66,6 +90,9 @@ class _LoginPageState extends State<LoginPage> {
           // Local login successful - set user and save to persistent storage
           AuthService.setCurrentUser(account);
           await AuthService.saveLocalUser(account);
+          // Save remember me preference
+          await TokenService.saveRememberMe(_rememberMe, username);
+          
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -76,7 +103,7 @@ class _LoginPageState extends State<LoginPage> {
           // Both login attempts failed
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Invalid email or password'),
+              content: Text('Invalid User ID or password'),
               backgroundColor: Colors.red,
             ),
           );
@@ -135,137 +162,92 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                     const SizedBox(height: 40),
                           
-                          // Email field
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              RichText(
-                                text: const TextSpan(
-                                  text: 'Email address',
-                                  style: TextStyle(
-                                    color: Colors.black87,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  children: [
-                                    TextSpan(
-                                      text: ' *',
-                                      style: TextStyle(color: Colors.red),
-                                    ),
-                                  ],
-                                ),
+                          // User ID field (NOT email)
+                          TextFormField(
+                            controller: _emailController,
+                            keyboardType: TextInputType.text,
+                            decoration: InputDecoration(
+                              labelText: 'Nomor Induk Mahasiswa',
+                              hintText: 'Masukkan NIM',
+                              hintStyle: TextStyle(color: Colors.grey[400]),
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(4),
+                                borderSide: BorderSide(color: Colors.grey[400]!),
                               ),
-                              const SizedBox(height: 8),
-                              TextFormField(
-                                controller: _emailController,
-                                keyboardType: TextInputType.emailAddress,
-                                decoration: InputDecoration(
-                                  hintText: 'filament@mail.com',
-                                  hintStyle: TextStyle(color: Colors.grey[400]),
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(4),
-                                    borderSide: BorderSide(color: Colors.grey[400]!),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(4),
-                                    borderSide: BorderSide(color: Colors.grey[400]!),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(4),
-                                    borderSide: const BorderSide(color: Color(0xFF0066CC), width: 2),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 12,
-                                  ),
-                                ),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter your email';
-                                  }
-                                  if (!value.contains('@')) {
-                                    return 'Please enter a valid email';
-                                  }
-                                  return null;
-                                },
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(4),
+                                borderSide: BorderSide(color: Colors.grey[400]!),
                               ),
-                            ],
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(4),
+                                borderSide: const BorderSide(color: Color(0xFF0066CC), width: 2),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your User ID';
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 20),
                           
                           // Password field
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              RichText(
-                                text: const TextSpan(
-                                  text: 'Password',
-                                  style: TextStyle(
-                                    color: Colors.black87,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  children: [
-                                    TextSpan(
-                                      text: ' *',
-                                      style: TextStyle(color: Colors.red),
-                                    ),
-                                  ],
-                                ),
+                          TextFormField(
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            decoration: InputDecoration(
+                              labelText: 'Password',
+                              hintText: 'Masukkan Password',
+                              hintStyle: TextStyle(color: Colors.grey[400]),
+                              filled: true,
+                              fillColor: Colors.white,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(4),
+                                borderSide: BorderSide(color: Colors.grey[400]!),
                               ),
-                              const SizedBox(height: 8),
-                              TextFormField(
-                                controller: _passwordController,
-                                obscureText: _obscurePassword,
-                                decoration: InputDecoration(
-                                  hintText: '••••••••',
-                                  hintStyle: TextStyle(color: Colors.grey[400]),
-                                  filled: true,
-                                  fillColor: Colors.white,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(4),
-                                    borderSide: BorderSide(color: Colors.grey[400]!),
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(4),
-                                    borderSide: BorderSide(color: Colors.grey[400]!),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(4),
-                                    borderSide: const BorderSide(color: Color(0xFF0066CC), width: 2),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 12,
-                                  ),
-                                  suffixIcon: IconButton(
-                                    icon: Icon(
-                                      _obscurePassword
-                                          ? Icons.visibility_outlined
-                                          : Icons.visibility_off_outlined,
-                                      color: Colors.grey[600],
-                                      size: 20,
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        _obscurePassword = !_obscurePassword;
-                                      });
-                                    },
-                                  ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(4),
+                                borderSide: BorderSide(color: Colors.grey[400]!),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(4),
+                                borderSide: const BorderSide(color: Color(0xFF0066CC), width: 2),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                  color: Colors.grey[600],
+                                  size: 20,
                                 ),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Please enter your password';
-                                  }
-                                  if (value.length < 6) {
-                                    return 'Password must be at least 6 characters';
-                                  }
-                                  return null;
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
                                 },
                               ),
-                            ],
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your password';
+                              }
+                              if (value.length < 6) {
+                                return 'Password must be at least 6 characters';
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 16),
                           
