@@ -539,6 +539,12 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => EditSurveyWithSectionsPage(
+                                          survey: {
+                                            'name': 'New Survey',
+                                            'description': 'Survey description',
+                                            'sections': [],
+                                            'isLive': false,
+                                          },
                                           initialTab: 0,
                                         ),
                                       ),
@@ -1049,6 +1055,12 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => EditSurveyWithSectionsPage(
+                                          survey: {
+                                            'name': 'New Survey',
+                                            'description': 'Survey description',
+                                            'sections': [],
+                                            'isLive': false,
+                                          },
                                           initialTab: 0,
                                         ),
                                       ),

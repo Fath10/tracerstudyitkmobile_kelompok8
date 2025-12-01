@@ -93,7 +93,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     var filtered = users;
     
     // Filter out admin users
-    filtered = filtered.where((user) => user.role?.name?.toLowerCase() != 'admin').toList();
+    filtered = filtered.where((user) => user.role?.name.toLowerCase() != 'admin').toList();
     
     // Apply search filter
     if (searchQuery.isNotEmpty) {
