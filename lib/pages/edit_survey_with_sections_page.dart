@@ -1,11 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'take_questionnaire_page.dart';
 import '../models/survey_section.dart';
+import '../database/database_helper.dart';
 
 class EditSurveyWithSectionsPage extends StatefulWidget {
   final Map<String, dynamic> survey;
+  final int initialTab;
   
-  const EditSurveyWithSectionsPage({super.key, required this.survey});
+  const EditSurveyWithSectionsPage({super.key, required this.survey, this.initialTab = 0});
 
   @override
   State<EditSurveyWithSectionsPage> createState() => _EditSurveyWithSectionsPageState();
@@ -34,19 +37,29 @@ class _EditSurveyWithSectionsPageState extends State<EditSurveyWithSectionsPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 3, vsync: this, initialIndex: widget.initialTab);
     _surveyNameController.text = widget.survey['name'] ?? 'Survey 1';
     _surveyDescriptionController.text = widget.survey['description'] ?? 'Survey description';
     _isLive = widget.survey['isLive'] ?? false;
     
     // Initialize sections from survey data or create a default section
+    print('DEBUG [INIT]: Loading survey: ${widget.survey['name']}');
+    print('DEBUG [INIT]: Survey data keys: ${widget.survey.keys}');
+    print('DEBUG [INIT]: Sections in survey data: ${widget.survey['sections']}');
+    
     if (widget.survey['sections'] != null && (widget.survey['sections'] as List).isNotEmpty) {
+      print('DEBUG [INIT]: Found ${(widget.survey['sections'] as List).length} sections to load');
       sections = (widget.survey['sections'] as List)
           .map((s) => SurveySection.fromJson(s))
           .toList();
       sections.sort((a, b) => a.order.compareTo(b.order));
       _sectionCounter = sections.length + 1;
+      print('DEBUG [INIT]: Loaded ${sections.length} sections successfully');
+      for (int i = 0; i < sections.length; i++) {
+        print('DEBUG [INIT]: Section $i - "${sections[i].title}" with ${sections[i].questions.length} questions');
+      }
     } else {
+      print('DEBUG [INIT]: No sections found, creating default section');
       // Create default section with existing questions
       final defaultQuestions = widget.survey['questions'] != null && (widget.survey['questions'] as List).isNotEmpty
           ? (widget.survey['questions'] as List).map((q) => Map<String, dynamic>.from(q as Map)).toList()
@@ -176,7 +189,24 @@ class _EditSurveyWithSectionsPageState extends State<EditSurveyWithSectionsPage>
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            // Auto-save when closing
+            final sectionsData = sections.map((s) => s.toJson()).toList();
+            print('DEBUG [AUTO-SAVE ON CLOSE]: Saving ${sectionsData.length} sections');
+            print('DEBUG [AUTO-SAVE ON CLOSE]: Sections data: $sectionsData');
+            
+            final surveyData = {
+              'name': _surveyNameController.text.trim(),
+              'description': _surveyDescriptionController.text.trim(),
+              'sections': sectionsData,
+              'isLive': _isLive,
+              'isDefault': widget.survey['isDefault'] ?? false,
+              'updated_at': DateTime.now().toIso8601String(),
+            };
+            
+            print('DEBUG [AUTO-SAVE ON CLOSE]: Complete survey data keys: ${surveyData.keys}');
+            Navigator.pop(context, surveyData);
+          },
         ),
         title: Row(
           children: [
@@ -213,7 +243,7 @@ class _EditSurveyWithSectionsPageState extends State<EditSurveyWithSectionsPage>
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    'Edit Survey',
+                    'Edit Survey • ${sections.length} ${sections.length == 1 ? 'Section' : 'Sections'}',
                     style: TextStyle(
                       color: Colors.grey[600],
                       fontSize: 9,
@@ -244,7 +274,7 @@ class _EditSurveyWithSectionsPageState extends State<EditSurveyWithSectionsPage>
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                 minimumSize: const Size(0, 36),
               ),
-              child: const Text('Publish', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+              child: const Text('Save', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
             ),
           ),
         ],
@@ -268,6 +298,7 @@ class _EditSurveyWithSectionsPageState extends State<EditSurveyWithSectionsPage>
     return PageView.builder(
       controller: _sectionPageController,
       itemCount: sections.length,
+      physics: const ClampingScrollPhysics(), // Better physics for nested scrolling
       onPageChanged: (index) {
         setState(() {
           _currentSectionIndex = index;
@@ -284,159 +315,139 @@ class _EditSurveyWithSectionsPageState extends State<EditSurveyWithSectionsPage>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
+        color: Colors.white,
         border: Border(
           bottom: BorderSide(color: Colors.grey[200]!, width: 1),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          // Section tabs
-          SizedBox(
-            height: 50,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: sections.length,
-              itemBuilder: (context, index) {
-                final section = sections[index];
-                final isSelected = _currentSectionIndex == index;
-                
-                return GestureDetector(
-                  onTap: () {
-                    _sectionPageController.animateToPage(
-                      index,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    margin: const EdgeInsets.only(right: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF1A73E8) : Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isSelected ? const Color(0xFF1A73E8) : Colors.grey[300]!,
-                        width: 1.5,
-                      ),
-                    ),
+          // Section dropdown (Google Forms style) - wider to prevent overflow
+          Expanded(
+            flex: 3,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey[300]!),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: DropdownButton<int>(
+                value: _currentSectionIndex,
+                isExpanded: true,
+                underline: const SizedBox(),
+                icon: const Icon(Icons.arrow_drop_down, size: 24),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+                items: List.generate(sections.length, (index) {
+                  return DropdownMenuItem<int>(
+                    value: index,
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          section.title,
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : Colors.black87,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                        Flexible(
+                          child: Text(
+                            sections[index].title,
+                            style: const TextStyle(fontSize: 14),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(width: 8),
-                        // Section menu
-                        PopupMenuButton<String>(
-                          icon: Icon(
-                            Icons.more_vert,
-                            size: 16,
-                            color: isSelected ? Colors.white : Colors.grey[600],
+                        Text(
+                          '(${sections[index].questions.length})',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
                           ),
-                          padding: EdgeInsets.zero,
-                          onSelected: (value) {
-                            if (value == 'edit') {
-                              _editSectionName(index);
-                            } else if (value == 'duplicate') {
-                              _duplicateSection(index);
-                            } else if (value == 'delete') {
-                              _deleteSection(index);
-                            } else if (value == 'move_up' && index > 0) {
-                              _moveSectionUp(index);
-                            } else if (value == 'move_down' && index < sections.length - 1) {
-                              _moveSectionDown(index);
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(
-                              value: 'edit',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.edit, size: 18),
-                                  SizedBox(width: 12),
-                                  Text('Edit name'),
-                                ],
-                              ),
-                            ),
-                            const PopupMenuItem(
-                              value: 'duplicate',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.content_copy, size: 18),
-                                  SizedBox(width: 12),
-                                  Text('Duplicate'),
-                                ],
-                              ),
-                            ),
-                            if (index > 0)
-                              const PopupMenuItem(
-                                value: 'move_up',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.arrow_upward, size: 18),
-                                    SizedBox(width: 12),
-                                    Text('Move up'),
-                                  ],
-                                ),
-                              ),
-                            if (index < sections.length - 1)
-                              const PopupMenuItem(
-                                value: 'move_down',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.arrow_downward, size: 18),
-                                    SizedBox(width: 12),
-                                    Text('Move down'),
-                                  ],
-                                ),
-                              ),
-                            if (sections.length > 1)
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.delete, size: 18, color: Colors.red),
-                                    SizedBox(width: 12),
-                                    Text('Delete', style: TextStyle(color: Colors.red)),
-                                  ],
-                                ),
-                              ),
-                          ],
                         ),
                       ],
                     ),
-                  ),
-                );
-              },
+                  );
+                }),
+                onChanged: (newIndex) {
+                  if (newIndex != null && newIndex != _currentSectionIndex) {
+                    setState(() {
+                      _currentSectionIndex = newIndex;
+                      _sectionPageController.jumpToPage(newIndex);
+                    });
+                  }
+                },
+              ),
             ),
           ),
-          // Progress indicator
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 3,
-            child: Row(
-              children: List.generate(sections.length, (index) {
-                return Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 2),
-                    decoration: BoxDecoration(
-                      color: index == _currentSectionIndex
-                          ? const Color(0xFF1A73E8)
-                          : Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                );
-              }),
+          
+          const SizedBox(width: 12),
+          
+          // Section counter badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A73E8).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: Text(
+              '${_currentSectionIndex + 1}/${sections.length}',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF1A73E8),
+              ),
+            ),
+          ),
+          
+          const SizedBox(width: 8),
+          
+          // Three-dot menu for section actions
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, size: 20, color: Colors.grey[600]),
+            tooltip: 'Section actions',
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'edit',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit, size: 18, color: Colors.grey),
+                    SizedBox(width: 12),
+                    Text('Edit section name'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'duplicate',
+                child: Row(
+                  children: [
+                    Icon(Icons.content_copy, size: 18, color: Colors.grey),
+                    SizedBox(width: 12),
+                    Text('Duplicate section'),
+                  ],
+                ),
+              ),
+              if (sections.length > 1)
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                      SizedBox(width: 12),
+                      Text('Delete section', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+            ],
+            onSelected: (value) {
+              switch (value) {
+                case 'edit':
+                  _editSectionName(_currentSectionIndex);
+                  break;
+                case 'duplicate':
+                  _duplicateSection(_currentSectionIndex);
+                  break;
+                case 'delete':
+                  _deleteSection(_currentSectionIndex);
+                  break;
+              }
+            },
           ),
         ],
       ),
@@ -758,17 +769,42 @@ class _EditSurveyWithSectionsPageState extends State<EditSurveyWithSectionsPage>
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.content_copy, size: 18),
-                      tooltip: 'Duplicate',
-                      onPressed: () => _duplicateQuestion(sectionIndex, index),
-                      color: Colors.grey[700],
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 18),
-                      tooltip: 'Delete',
-                      onPressed: () => _deleteQuestion(sectionIndex, index),
-                      color: Colors.grey[700],
+                    // Three-dot menu for question actions
+                    PopupMenuButton<String>(
+                      icon: Icon(Icons.more_vert, size: 20, color: Colors.grey[600]),
+                      tooltip: 'Question actions',
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'duplicate',
+                          child: Row(
+                            children: [
+                              Icon(Icons.content_copy, size: 18, color: Colors.grey),
+                              SizedBox(width: 12),
+                              Text('Duplicate'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                              SizedBox(width: 12),
+                              Text('Delete', style: TextStyle(color: Colors.red)),
+                            ],
+                          ),
+                        ),
+                      ],
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'duplicate':
+                            _duplicateQuestion(sectionIndex, index);
+                            break;
+                          case 'delete':
+                            _deleteQuestion(sectionIndex, index);
+                            break;
+                        }
+                      },
                     ),
                     const SizedBox(width: 4),
                     Container(width: 1, height: 20, color: Colors.grey[300]),
@@ -1002,31 +1038,380 @@ class _EditSurveyWithSectionsPageState extends State<EditSurveyWithSectionsPage>
   }
 
   Widget _buildResponsesTab() {
-    // Similar to original implementation
-    return Center(
-      child: Text('Responses tab - Implementation remains the same'),
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: DatabaseHelper.instance.getResponsesBySurvey(widget.survey['name']),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                const SizedBox(height: 16),
+                const Text('Error loading responses'),
+                Text('${snapshot.error}'),
+              ],
+            ),
+          );
+        }
+
+        final responses = snapshot.data ?? [];
+        
+        if (responses.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.inbox, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text('No responses yet', style: TextStyle(fontSize: 18, color: Colors.grey)),
+              ],
+            ),
+          );
+        }
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: responses.length,
+          itemBuilder: (context, index) {
+            final response = responses[index];
+            
+            // Parse answers with null safety
+            Map<String, dynamic> answers = {};
+            try {
+              final answersData = response['answers'];
+              if (answersData != null && answersData is String && answersData.isNotEmpty) {
+                answers = Map<String, dynamic>.from(jsonDecode(answersData));
+              }
+            } catch (e) {
+              debugPrint('Error parsing answers: $e');
+            }
+            
+            final submittedAt = response['submittedAt'] != null
+                ? DateTime.parse(response['submittedAt'])
+                : DateTime.now();
+            
+            return Card(
+              margin: const EdgeInsets.only(bottom: 16),
+              elevation: 2,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const CircleAvatar(
+                          backgroundColor: Colors.purple,
+                          child: Icon(Icons.person, color: Colors.white),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                response['userName'] ?? 'Anonymous',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                              Text(
+                                response['userEmail'] ?? '',
+                                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '${submittedAt.day}/${submittedAt.month}/${submittedAt.year}',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 24),
+                    ...sections.map((section) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (sections.length > 1) ...[
+                            Text(
+                              section.title,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.purple,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          ...section.questions.map((question) {
+                            final questionId = question['id'].toString();
+                            final answer = answers[questionId];
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    question['text'] ?? question['question'] ?? 'Question',
+                                    style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.grey[300]!),
+                                    ),
+                                    child: Text(
+                                      answer?.toString() ?? 'No answer',
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ],
+                      );
+                    }).toList(),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
   Widget _buildSettingsTab() {
-    // Similar to original implementation
-    return Center(
-      child: Text('Settings tab - Implementation remains the same'),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Survey Settings',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 24),
+          
+          // Survey Name
+          const Text(
+            'Survey Name',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _surveyNameController,
+            decoration: InputDecoration(
+              hintText: 'Enter survey name',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          // Survey Description
+          const Text(
+            'Survey Description',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _surveyDescriptionController,
+            maxLines: 3,
+            decoration: InputDecoration(
+              hintText: 'Enter survey description',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              filled: true,
+              fillColor: Colors.grey[50],
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          // Survey Status
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+              side: BorderSide(color: Colors.grey[300]!),
+            ),
+            child: SwitchListTile(
+              title: const Text(
+                'Survey Status',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                _isLive 
+                  ? 'Survey is live and accepting responses' 
+                  : 'Survey is not live - respondents cannot submit',
+                style: TextStyle(
+                  color: _isLive ? Colors.green : Colors.orange,
+                  fontSize: 13,
+                ),
+              ),
+              value: _isLive,
+              activeColor: const Color(0xFF1A73E8),
+              onChanged: (value) {
+                setState(() {
+                  _isLive = value;
+                });
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+          
+          // Survey Information
+          Card(
+            elevation: 0,
+            color: Colors.blue[50],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.blue[700]),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Survey Information',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildInfoRow('Sections', sections.length.toString()),
+                  _buildInfoRow(
+                    'Total Questions', 
+                    sections.fold<int>(0, (sum, section) => sum + section.questions.length).toString(),
+                  ),
+                  _buildInfoRow('Survey Type', widget.survey['isDefault'] == true ? 'Default Survey' : 'Custom Survey'),
+                  if (widget.survey['updated_at'] != null)
+                    _buildInfoRow(
+                      'Last Updated', 
+                      DateTime.parse(widget.survey['updated_at']).toString().substring(0, 16),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 14, color: Colors.black87),
+          ),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+        ],
+      ),
     );
   }
 
   // Section Management Methods
   void _addSection() {
     setState(() {
+      // Copy questions from current section as template with FULL CONTENT
+      List<Map<String, dynamic>> templateQuestions = [];
+      if (_currentSectionIndex >= 0 && _currentSectionIndex < sections.length) {
+        final currentSection = sections[_currentSectionIndex];
+        if (currentSection.questions.isNotEmpty) {
+          // Deep copy questions with all nested data
+          templateQuestions = currentSection.questions.map((q) {
+            final copiedQuestion = <String, dynamic>{};
+            q.forEach((key, value) {
+              if (value is List) {
+                // Deep copy lists (options, labels, etc.)
+                copiedQuestion[key] = List.from(value);
+              } else if (value is Map) {
+                // Deep copy maps
+                copiedQuestion[key] = Map<String, dynamic>.from(value as Map);
+              } else {
+                // Copy primitive values
+                copiedQuestion[key] = value;
+              }
+            });
+            return copiedQuestion;
+          }).toList();
+          
+          print('DEBUG: Copied ${templateQuestions.length} questions from section "${currentSection.title}" as template');
+        }
+      }
+      
+      final newSectionIndex = sections.length;
       final newSection = SurveySection(
         id: 'section_$_sectionCounter',
         title: 'Section $_sectionCounter',
         description: '',
-        order: sections.length,
-        questions: [],
+        order: newSectionIndex,
+        questions: templateQuestions,
       );
       sections.add(newSection);
       _sectionCounter++;
+      
+      // Initialize controllers for the new section's questions
+      for (int i = 0; i < templateQuestions.length; i++) {
+        final question = templateQuestions[i];
+        final questionKey = 'section_${newSectionIndex}_question_$i';
+        
+        _questionControllers[questionKey] = TextEditingController(text: question['question'] ?? question['text'] ?? '');
+        
+        if (question['type'] == 'multiple_choice' || question['type'] == 'yes_no') {
+          if (question['options'] != null) {
+            _optionControllers[questionKey] = [];
+            for (int j = 0; j < (question['options'] as List).length; j++) {
+              _optionControllers[questionKey]!.add(
+                TextEditingController(text: (question['options'] as List)[j] ?? '')
+              );
+            }
+          }
+        } else if (question['type'] == 'rating') {
+          _scaleControllers[questionKey] = TextEditingController(text: (question['scale'] ?? 5).toString());
+          if (question['labels'] != null && (question['labels'] as List).length >= 2) {
+            _labelControllers[questionKey] = [
+              TextEditingController(text: (question['labels'] as List)[0] ?? ''),
+              TextEditingController(text: (question['labels'] as List)[1] ?? ''),
+            ];
+          } else {
+            _labelControllers[questionKey] = [
+              TextEditingController(text: 'Low'),
+              TextEditingController(text: 'High'),
+            ];
+          }
+        } else if (question['type'] == 'text') {
+          _placeholderControllers[questionKey] = TextEditingController(text: question['placeholder'] ?? '');
+        }
+      }
+      
+      print('DEBUG: Created new section with ${templateQuestions.length} template questions and initialized controllers');
       
       // Navigate to new section
       Future.delayed(const Duration(milliseconds: 100), () {
@@ -1349,14 +1734,26 @@ class _EditSurveyWithSectionsPageState extends State<EditSurveyWithSectionsPage>
       return;
     }
 
+    print('DEBUG [SAVE BUTTON]: Preparing to save survey...');
+    print('DEBUG [SAVE BUTTON]: Total sections: ${sections.length}');
+    for (int i = 0; i < sections.length; i++) {
+      print('DEBUG [SAVE BUTTON]: Section $i - "${sections[i].title}" with ${sections[i].questions.length} questions');
+    }
+    
+    final sectionsData = sections.map((s) => s.toJson()).toList();
+    print('DEBUG [SAVE BUTTON]: Serialized sections data: $sectionsData');
+    
     final surveyData = {
       'name': _surveyNameController.text.trim(),
       'description': _surveyDescriptionController.text.trim(),
-      'sections': sections.map((s) => s.toJson()).toList(),
+      'sections': sectionsData,
       'isLive': _isLive,
       'isDefault': widget.survey['isDefault'] ?? false,
       'updated_at': DateTime.now().toIso8601String(),
     };
+    
+    print('DEBUG [SAVE BUTTON]: Complete survey data prepared with keys: ${surveyData.keys}');
+    print('DEBUG [SAVE BUTTON]: Survey name: ${surveyData['name']}');
     
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(

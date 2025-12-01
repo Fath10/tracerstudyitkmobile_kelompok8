@@ -3,7 +3,6 @@ import 'employee_directory_page.dart';
 import 'login_page.dart';
 import 'user_management_page.dart';
 import 'home_page.dart';
-import 'add_survey_page.dart';
 import 'edit_survey_with_sections_page.dart';
 import 'take_questionnaire_page.dart';
 import 'questionnaire_list_page.dart';
@@ -24,14 +23,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
   
   // Survey data lists
   List<Map<String, dynamic>> customSurveys = SurveyStorage.customSurveys;
-  List<Map<String, dynamic>> templateSurveys = [
-    {'title': 'Informatics Alumni Survey', 'subtitle': 'Career tracking for Informatics graduates'},
-    {'title': 'Chemical Engineering Survey', 'subtitle': 'Industry placement for Chemical Engineering alumni'},
-    {'title': 'Mathematics Alumni Survey', 'subtitle': 'Career development for Mathematics graduates'},
-    {'title': 'Industrial Engineering Survey', 'subtitle': 'Professional advancement tracking'},
-    {'title': 'Environmental Engineering Survey', 'subtitle': 'Environmental sector career survey'},
-    {'title': 'Food Technology Survey', 'subtitle': 'Food industry career assessment'},
-  ];
+  List<Map<String, dynamic>> templateSurveys = [];
   
   // Section management
   List<Map<String, dynamic>> customSections = [];
@@ -47,6 +39,29 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
     super.initState();
     _liveSectionController.text = liveSectionTitle;
     _templateSectionController.text = templateSectionTitle;
+    _loadSurveys();
+  }
+  
+  void _loadSurveys() {
+    // Load template surveys from storage
+    print('DEBUG [SURVEY MANAGEMENT]: Loading surveys from storage...');
+    final allSurveys = SurveyStorage.getAllAvailableSurveys();
+    print('DEBUG [SURVEY MANAGEMENT]: getAllAvailableSurveys returned ${allSurveys.length} total surveys');
+    
+    setState(() {
+      templateSurveys = allSurveys.where((s) => s['isTemplate'] == true).toList();
+      customSurveys = SurveyStorage.customSurveys;
+    });
+    
+    print('DEBUG [SURVEY MANAGEMENT]: Loaded ${templateSurveys.length} template surveys');
+    for (int i = 0; i < templateSurveys.length; i++) {
+      final hasSections = templateSurveys[i]['sections'] != null;
+      final sectionCount = hasSections ? (templateSurveys[i]['sections'] as List).length : 0;
+      print('DEBUG [SURVEY MANAGEMENT]:   Template $i - "${templateSurveys[i]['title']}" has sections: $hasSections, count: $sectionCount');
+      if (hasSections && sectionCount > 0) {
+        print('DEBUG [SURVEY MANAGEMENT]:     Sections data: ${templateSurveys[i]['sections']}');
+      }
+    }
   }
   
   @override
@@ -372,74 +387,33 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                   ),
                   const SizedBox(height: 16),
                   
-                  // Search Bar with Add Button
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[100],
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey[300]!),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(Icons.search, color: Colors.grey[500], size: 20),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: TextField(
-                                  decoration: InputDecoration(
-                                    hintText: 'Search surveys...',
-                                    hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
-                                    border: InputBorder.none,
-                                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                                  ),
-                                  onChanged: (value) {
-                                    // TODO: Implement search functionality
-                                  },
-                                ),
-                              ),
-                            ],
+                  // Search Bar
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.search, color: Colors.grey[500], size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            decoration: InputDecoration(
+                              hintText: 'Search surveys...',
+                              hintStyle: TextStyle(color: Colors.grey[500], fontSize: 14),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            onChanged: (value) {
+                              // TODO: Implement search functionality
+                            },
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Create Button (+ Icon)
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.blue[600],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: IconButton(
-                          onPressed: () async {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const AddSurveyPage(),
-                              ),
-                            );
-                            
-                            if (result != null) {
-                              SurveyStorage.addSurvey(result);
-                              setState(() {
-                                customSurveys = SurveyStorage.customSurveys;
-                              });
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Survey created successfully!'),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          icon: const Icon(Icons.add, color: Colors.white, size: 24),
-                          tooltip: 'Create Survey',
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -491,20 +465,90 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                       ),
                               ),
                               const SizedBox(width: 8),
-                              InkWell(
-                                onTap: () {
-                                  setState(() {
-                                    if (isEditingLiveSection) {
-                                      liveSectionTitle = _liveSectionController.text;
-                                    }
-                                    isEditingLiveSection = !isEditingLiveSection;
-                                  });
-                                },
-                                child: Icon(
-                                  isEditingLiveSection ? Icons.check : Icons.edit,
+                              PopupMenuButton<String>(
+                                icon: Icon(
+                                  Icons.more_vert,
                                   size: 18,
-                                  color: Colors.blue[600],
+                                  color: Colors.grey[600],
                                 ),
+                                itemBuilder: (context) => [
+                                  PopupMenuItem(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.edit_outlined, size: 16),
+                                        const SizedBox(width: 8),
+                                        Text(isEditingLiveSection ? 'Save' : 'Edit Name'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                                        SizedBox(width: 8),
+                                        Text('Delete Category', style: TextStyle(color: Colors.red)),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'add_survey',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.add_circle_outline, size: 16),
+                                        SizedBox(width: 8),
+                                        Text('Add Survey'),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                onSelected: (value) {
+                                  if (value == 'edit') {
+                                    setState(() {
+                                      if (isEditingLiveSection) {
+                                        liveSectionTitle = _liveSectionController.text;
+                                      }
+                                      isEditingLiveSection = !isEditingLiveSection;
+                                    });
+                                  } else if (value == 'delete') {
+                                    showDialog(
+                                      context: context,
+                                      builder: (BuildContext context) => AlertDialog(
+                                        title: const Text('Delete Category'),
+                                        content: const Text('Are you sure you want to delete this category?'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.pop(context);
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('Cannot delete default category')),
+                                              );
+                                            },
+                                            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  } else if (value == 'add_survey') {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => EditSurveyWithSectionsPage(
+                                          initialTab: 0,
+                                        ),
+                                      ),
+                                    ).then((result) {
+                                      if (result != null && result is Map<String, dynamic>) {
+                                        setState(() {});
+                                      }
+                                    });
+                                  }
+                                },
                               ),
                             ],
                           ),
@@ -605,16 +649,37 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                     side: BorderSide(color: Colors.green[200]!, width: 1),
                                   ),
                                   child: InkWell(
-                                    onTap: () {
-                                      // Navigate to edit page to view responses
-                                      Navigator.push(
+                                    onTap: () async {
+                                      // Navigate to edit page to view questions
+                                      print('DEBUG [LIVE SURVEY]: Opening survey: ${survey['name']}');
+                                      final result = await Navigator.push(
                                         context,
                                         MaterialPageRoute(
                                           builder: (context) => EditSurveyWithSectionsPage(
                                             survey: survey,
+                                            initialTab: 0, // Open questions tab
                                           ),
                                         ),
-                                      ).then((_) => setState(() {}));
+                                      );
+                                      
+                                      print('DEBUG [LIVE SURVEY]: Editor closed, result is null: ${result == null}');
+                                      
+                                      if (result != null) {
+                                        print('DEBUG [LIVE SURVEY]: Received result with keys: ${result.keys}');
+                                        print('DEBUG [LIVE SURVEY]: Result has sections: ${result['sections'] != null}');
+                                        
+                                        // Update the survey in storage based on its type
+                                        if (result['isDefault'] == true) {
+                                          print('DEBUG [LIVE SURVEY]: Updating default survey');
+                                          SurveyStorage.updateDefaultSurvey(result['name'], result);
+                                        } else {
+                                          print('DEBUG [LIVE SURVEY]: ERROR - Live survey is not a default survey!');
+                                        }
+                                        
+                                        _loadSurveys(); // Reload surveys to get updated data
+                                      }
+                                      
+                                      setState(() {});
                                     },
                                 borderRadius: BorderRadius.circular(12),
                                 child: Padding(
@@ -910,36 +975,92 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                       ),
                               ),
                               const SizedBox(width: 8),
-                              InkWell(
-                                onTap: () {
-                                  setState(() {
-                                    if (isEditingTemplateSection) {
-                                      templateSectionTitle = _templateSectionController.text;
-                                    }
-                                    isEditingTemplateSection = !isEditingTemplateSection;
-                                  });
-                                },
-                                child: Icon(
-                                  isEditingTemplateSection ? Icons.check : Icons.edit,
+                              PopupMenuButton<String>(
+                                icon: Icon(
+                                  Icons.more_vert,
                                   size: 18,
-                                  color: Colors.blue[600],
+                                  color: Colors.grey[600],
                                 ),
+                                itemBuilder: (context) => [
+                                  PopupMenuItem(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.edit_outlined, size: 16),
+                                        const SizedBox(width: 8),
+                                        Text(isEditingTemplateSection ? 'Save' : 'Edit Name'),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                                        SizedBox(width: 8),
+                                        Text('Delete Category', style: TextStyle(color: Colors.red)),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'add_survey',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.add_circle_outline, size: 16),
+                                        SizedBox(width: 8),
+                                        Text('Add Survey'),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                onSelected: (value) {
+                                  if (value == 'edit') {
+                                    setState(() {
+                                      if (isEditingTemplateSection) {
+                                        templateSectionTitle = _templateSectionController.text;
+                                      }
+                                      isEditingTemplateSection = !isEditingTemplateSection;
+                                    });
+                                  } else if (value == 'delete') {
+                                    showDialog(
+                                      context: context,
+                                      builder: (BuildContext context) => AlertDialog(
+                                        title: const Text('Delete Category'),
+                                        content: const Text('Are you sure you want to delete this category?'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            child: const Text('Cancel'),
+                                          ),
+                                          TextButton(
+                                            onPressed: () {
+                                              Navigator.pop(context);
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text('Cannot delete default category')),
+                                              );
+                                            },
+                                            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  } else if (value == 'add_survey') {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => EditSurveyWithSectionsPage(
+                                          initialTab: 0,
+                                        ),
+                                      ),
+                                    ).then((result) {
+                                      if (result != null && result is Map<String, dynamic>) {
+                                        setState(() {});
+                                      }
+                                    });
+                                  }
+                                },
                               ),
                             ],
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('View all templates feature coming soon!')),
-                            );
-                          },
-                          child: Text(
-                            'View all',
-                            style: TextStyle(
-                              color: Colors.blue[600],
-                              fontSize: 14,
-                            ),
                           ),
                         ),
                       ],
@@ -1000,6 +1121,9 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                 case 'delete':
                                                   _deleteSurvey(index, isCustom: false, surveyName: template['title']);
                                                   break;
+                                                case 'add_questionnaire':
+                                                  _takeSurvey(template);
+                                                  break;
                                               }
                                             },
                                             icon: Icon(
@@ -1014,7 +1138,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                   children: [
                                                     Icon(Icons.edit_outlined, size: 16),
                                                     SizedBox(width: 8),
-                                                    Text('Edit Survey'),
+                                                    Text('Edit'),
                                                   ],
                                                 ),
                                               ),
@@ -1024,7 +1148,17 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                   children: [
                                                     Icon(Icons.delete_outline, size: 16, color: Colors.red),
                                                     SizedBox(width: 8),
-                                                    Text('Delete Survey', style: TextStyle(color: Colors.red)),
+                                                    Text('Delete', style: TextStyle(color: Colors.red)),
+                                                  ],
+                                                ),
+                                              ),
+                                              const PopupMenuItem(
+                                                value: 'add_questionnaire',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(Icons.add_circle_outline, size: 16),
+                                                    SizedBox(width: 8),
+                                                    Text('Add New Survey'),
                                                   ],
                                                 ),
                                               ),
@@ -1224,12 +1358,12 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
 
                     const SizedBox(height: 8),
                     
-                    // Add New Section Button
+                    // Add New Category Button
                     Center(
                       child: OutlinedButton.icon(
                         onPressed: _showAddSectionDialog,
                         icon: const Icon(Icons.add, size: 20),
-                        label: const Text('Add New Section'),
+                        label: const Text('Add New Category'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.blue[600],
                           side: BorderSide(color: Colors.blue[600]!),
@@ -1345,6 +1479,10 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
       'isLive': survey['isLive'] ?? false, // Pass live status
     };
     
+    print('DEBUG [SURVEY MANAGEMENT]: Opening editor for survey: ${surveyData['title']}');
+    print('DEBUG [SURVEY MANAGEMENT]: Survey data being passed: ${surveyData.keys}');
+    print('DEBUG [SURVEY MANAGEMENT]: Survey has sections: ${surveyData['sections'] != null}');
+    
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -1352,26 +1490,34 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
       ),
     );
     
+    print('DEBUG [SURVEY MANAGEMENT]: Editor closed, result is null: ${result == null}');
+    
     if (result != null) {
+      print('DEBUG [SURVEY MANAGEMENT]: ========== RECEIVED RESULT FROM EDITOR ==========');
+      print('DEBUG [SURVEY MANAGEMENT]: Result keys: ${result.keys}');
+      print('DEBUG [SURVEY MANAGEMENT]: Result name: ${result['name']}');
+      print('DEBUG [SURVEY MANAGEMENT]: Result isDefault: ${result['isDefault']}');
+      print('DEBUG [SURVEY MANAGEMENT]: Result sections: ${result['sections']}');
+      
       if (isCustom) {
+        print('DEBUG [SURVEY MANAGEMENT]: Updating custom survey at index $index');
         SurveyStorage.updateSurvey(index, result);
         setState(() {
           customSurveys = SurveyStorage.customSurveys;
         });
+        print('DEBUG [SURVEY MANAGEMENT]: Custom survey updated. New survey: ${customSurveys[index]}');
       } else if (result['isDefault'] == true) {
         // For default surveys, update in storage
+        print('DEBUG [SURVEY MANAGEMENT]: Updating default survey "${result['name']}"');
         SurveyStorage.updateDefaultSurvey(result['name'], result);
-        setState(() {});
+        print('DEBUG [SURVEY MANAGEMENT]: Default survey updated in storage, reloading surveys...');
+        _loadSurveys(); // Reload to get updated data from storage
       } else {
         // For template surveys, update in storage (not just local)
+        print('DEBUG [SURVEY MANAGEMENT]: Updating template survey "${survey['title'] ?? survey['name']}"');
         SurveyStorage.updateTemplateSurvey(survey['title'] ?? survey['name'], result);
-        setState(() {
-          // Update local display data
-          templateSurveys[index]['title'] = result['name'];
-          templateSurveys[index]['subtitle'] = result['description'] ?? templateSurveys[index]['subtitle'];
-          templateSurveys[index]['questions'] = result['questions'];
-          templateSurveys[index]['isLive'] = result['isLive'] ?? false;
-        });
+        print('DEBUG [SURVEY MANAGEMENT]: Template survey updated in storage, reloading surveys...');
+        _loadSurveys(); // Reload to get updated data from storage
       }
       
       if (mounted) {
@@ -1455,12 +1601,12 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Add New Section'),
+          title: const Text('Add New Category'),
           content: TextField(
             controller: sectionNameController,
             decoration: const InputDecoration(
-              labelText: 'Section Name',
-              hintText: 'Enter section name',
+              labelText: 'Category Name',
+              hintText: 'Enter category name',
               border: OutlineInputBorder(),
             ),
             autofocus: true,
@@ -1490,7 +1636,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                   Navigator.of(context).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Section "${sectionNameController.text.trim()}" created with 1 sample survey!'),
+                      content: Text('Category "${sectionNameController.text.trim()}" created with 1 sample survey!'),
                       backgroundColor: Colors.green,
                     ),
                   );

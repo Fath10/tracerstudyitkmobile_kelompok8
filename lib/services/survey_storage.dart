@@ -11,7 +11,14 @@ class SurveyStorage {
   
   static void updateSurvey(int index, Map<String, dynamic> survey) {
     if (index >= 0 && index < _customSurveys.length) {
+      print('DEBUG [SURVEY STORAGE]: Updating custom survey at index $index');
+      print('DEBUG [SURVEY STORAGE]: Old survey: ${_customSurveys[index]}');
+      print('DEBUG [SURVEY STORAGE]: New survey keys: ${survey.keys}');
+      print('DEBUG [SURVEY STORAGE]: New survey sections: ${survey['sections']}');
       _customSurveys[index] = survey;
+      print('DEBUG [SURVEY STORAGE]: Survey updated successfully');
+    } else {
+      print('DEBUG [SURVEY STORAGE]: ERROR - Invalid index $index (total surveys: ${_customSurveys.length})');
     }
   }
   
@@ -19,16 +26,71 @@ class SurveyStorage {
     // Update default survey properties (like isLive status)
     final index = _defaultSurveys.indexWhere((s) => s['name'] == surveyName);
     if (index >= 0) {
+      print('DEBUG [SURVEY STORAGE]: Updating default survey "$surveyName"');
+      print('DEBUG [SURVEY STORAGE]: Updates: $updates');
+      print('DEBUG [SURVEY STORAGE]: Updates sections: ${updates['sections']}');
       _defaultSurveys[index] = {..._defaultSurveys[index], ...updates};
+      print('DEBUG [SURVEY STORAGE]: Default survey updated successfully');
+    } else {
+      print('DEBUG [SURVEY STORAGE]: ERROR - Default survey "$surveyName" not found');
     }
   }
   
   static void updateTemplateSurvey(String surveyTitle, Map<String, dynamic> updates) {
     // Update template survey properties (like isLive status)
+    print('DEBUG [SURVEY STORAGE]: ========== UPDATE TEMPLATE SURVEY ==========');
+    print('DEBUG [SURVEY STORAGE]: Searching for: "$surveyTitle"');
+    print('DEBUG [SURVEY STORAGE]: Current _templateSurveys length: ${_templateSurveys.length}');
+    
     final index = _templateSurveys.indexWhere((s) => s['title'] == surveyTitle || s['name'] == surveyTitle);
+    print('DEBUG [SURVEY STORAGE]: Found at index: $index');
+    
     if (index >= 0) {
-      _templateSurveys[index] = {..._templateSurveys[index], ...updates};
+      print('DEBUG [SURVEY STORAGE]: BEFORE UPDATE:');
+      print('DEBUG [SURVEY STORAGE]:   Keys: ${_templateSurveys[index].keys.toList()}');
+      print('DEBUG [SURVEY STORAGE]:   Title: ${_templateSurveys[index]['title']}');
+      print('DEBUG [SURVEY STORAGE]:   Name: ${_templateSurveys[index]['name']}');
+      print('DEBUG [SURVEY STORAGE]:   Has sections: ${_templateSurveys[index]['sections'] != null}');
+      if (_templateSurveys[index]['sections'] != null) {
+        print('DEBUG [SURVEY STORAGE]:   Sections count: ${(_templateSurveys[index]['sections'] as List).length}');
+      }
+      
+      print('DEBUG [SURVEY STORAGE]: UPDATES TO APPLY:');
+      print('DEBUG [SURVEY STORAGE]:   Keys: ${updates.keys.toList()}');
+      print('DEBUG [SURVEY STORAGE]:   Has sections: ${updates['sections'] != null}');
+      if (updates['sections'] != null) {
+        print('DEBUG [SURVEY STORAGE]:   Sections count: ${(updates['sections'] as List).length}');
+        print('DEBUG [SURVEY STORAGE]:   Sections data: ${updates['sections']}');
+      }
+      
+      // Create the updated survey
+      final updatedSurvey = {..._templateSurveys[index], ...updates};
+      print('DEBUG [SURVEY STORAGE]: MERGED SURVEY:');
+      print('DEBUG [SURVEY STORAGE]:   Keys: ${updatedSurvey.keys.toList()}');
+      print('DEBUG [SURVEY STORAGE]:   Has sections: ${updatedSurvey['sections'] != null}');
+      if (updatedSurvey['sections'] != null) {
+        print('DEBUG [SURVEY STORAGE]:   Sections count: ${(updatedSurvey['sections'] as List).length}');
+      }
+      
+      // Assign to list
+      _templateSurveys[index] = updatedSurvey;
+      
+      print('DEBUG [SURVEY STORAGE]: AFTER ASSIGNMENT TO LIST:');
+      print('DEBUG [SURVEY STORAGE]:   _templateSurveys[$index] keys: ${_templateSurveys[index].keys.toList()}');
+      print('DEBUG [SURVEY STORAGE]:   Has sections: ${_templateSurveys[index]['sections'] != null}');
+      if (_templateSurveys[index]['sections'] != null) {
+        print('DEBUG [SURVEY STORAGE]:   Sections count: ${(_templateSurveys[index]['sections'] as List).length}');
+        print('DEBUG [SURVEY STORAGE]:   Sections data: ${_templateSurveys[index]['sections']}');
+      }
+      print('DEBUG [SURVEY STORAGE]: ✅ Template survey updated successfully');
+    } else {
+      print('DEBUG [SURVEY STORAGE]: ❌ ERROR - Template survey "$surveyTitle" not found');
+      print('DEBUG [SURVEY STORAGE]: Available template surveys:');
+      for (int i = 0; i < _templateSurveys.length; i++) {
+        print('DEBUG [SURVEY STORAGE]:   [$i] title="${_templateSurveys[i]['title']}" name="${_templateSurveys[i]['name']}"');
+      }
     }
+    print('DEBUG [SURVEY STORAGE]: ==========================================');
   }
   
   static void removeSurvey(int index) {
@@ -243,6 +305,16 @@ class SurveyStorage {
       ...survey,
       'isDefault': false,
     }));
+    
+    print('DEBUG [SURVEY STORAGE]: getAllAvailableSurveys - Returning ${allSurveys.length} surveys');
+    print('DEBUG [SURVEY STORAGE]: Template surveys with sections:');
+    for (var survey in _templateSurveys) {
+      if (survey['sections'] != null) {
+        print('DEBUG [SURVEY STORAGE]:   "${survey['title']}" has ${(survey['sections'] as List).length} sections');
+      } else {
+        print('DEBUG [SURVEY STORAGE]:   "${survey['title']}" has NO sections field');
+      }
+    }
     
     return allSurveys;
   }

@@ -316,6 +316,7 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
                 key: _formKey,
                 child: PageView.builder(
                   controller: _sectionPageController,
+                  physics: const NeverScrollableScrollPhysics(),
                   itemCount: _surveySections.length,
                   onPageChanged: (index) {
                     setState(() {
