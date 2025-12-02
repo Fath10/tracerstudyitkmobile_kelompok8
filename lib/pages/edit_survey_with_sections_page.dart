@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'take_questionnaire_page.dart';
 import '../models/survey_section.dart';
-import '../database/database_helper.dart';
+import '../services/backend_survey_service.dart';
 
 class EditSurveyWithSectionsPage extends StatefulWidget {
   final Map<String, dynamic> survey;
@@ -18,6 +18,7 @@ class _EditSurveyWithSectionsPageState extends State<EditSurveyWithSectionsPage>
   final TextEditingController _surveyNameController = TextEditingController();
   final TextEditingController _surveyDescriptionController = TextEditingController();
   final PageController _sectionPageController = PageController();
+  final _surveyService = BackendSurveyService();
   
   List<SurveySection> sections = [];
   int _currentSectionIndex = 0;
@@ -211,7 +212,7 @@ class _EditSurveyWithSectionsPageState extends State<EditSurveyWithSectionsPage>
         title: Row(
           children: [
             Image.asset(
-              'assets/images/logo.png',
+              'assets/images/Logo ITK.png',
               height: 24,
               width: 24,
               fit: BoxFit.contain,
@@ -1037,9 +1038,26 @@ class _EditSurveyWithSectionsPageState extends State<EditSurveyWithSectionsPage>
     );
   }
 
+  Future<List<Map<String, dynamic>>> _loadSurveyResponses() async {
+    try {
+      final surveyId = widget.survey['id'] as int;
+      final answers = await _surveyService.getSurveyAnswers(surveyId);
+      return answers.map((answer) => {
+        'id': answer['id'],
+        'answers': answer['answer_text'] ?? '{}',
+        'submittedAt': answer['created_at'] ?? DateTime.now().toIso8601String(),
+        'userId': answer['user'],
+      }).toList();
+    } catch (e) {
+      debugPrint('Error loading survey responses: $e');
+      // Return empty list instead of rethrowing - allows graceful fallback
+      return [];
+    }
+  }
+
   Widget _buildResponsesTab() {
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: DatabaseHelper.instance.getResponsesBySurvey(widget.survey['name']),
+      future: _loadSurveyResponses(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -1353,7 +1371,7 @@ class _EditSurveyWithSectionsPageState extends State<EditSurveyWithSectionsPage>
                 copiedQuestion[key] = List.from(value);
               } else if (value is Map) {
                 // Deep copy maps
-                copiedQuestion[key] = Map<String, dynamic>.from(value as Map);
+                copiedQuestion[key] = Map<String, dynamic>.from(value);
               } else {
                 // Copy primitive values
                 copiedQuestion[key] = value;

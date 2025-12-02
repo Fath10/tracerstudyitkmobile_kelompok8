@@ -15,10 +15,7 @@ class BackendUserService {
   // Get all users (now public endpoint - no auth needed)
   Future<List<UserModel>> getAllUsers() async {
     try {
-      final response = await _apiService.get(ApiConfig.users, includeAuth: false).timeout(
-        const Duration(seconds: 5),
-        onTimeout: () => throw Exception('Connection timeout'),
-      );
+      final response = await _apiService.get(ApiConfig.users, includeAuth: false);
       final List<dynamic> data = response is List ? response : (response['results'] ?? []);
       final users = data.map((json) => UserModel.fromJson(json)).toList();
       
@@ -64,7 +61,7 @@ class BackendUserService {
   // Get user by ID
   Future<UserModel> getUserById(String id) async {
     try {
-      final response = await _apiService.get(ApiConfig.userDetail(int.parse(id)));
+      final response = await _apiService.get('${ApiConfig.users}$id/');
       return UserModel.fromJson(response);
     } catch (e) {
       throw Exception('Failed to fetch user: $e');
@@ -130,7 +127,7 @@ class BackendUserService {
       }
       
       final response = await _apiService.put(
-        ApiConfig.userDetail(int.parse(id)),
+        '${ApiConfig.users}$id/',
         userData,
         includeAuth: false,
       );
@@ -146,7 +143,7 @@ class BackendUserService {
   Future<UserModel> patchUser(String id, Map<String, dynamic> updates) async {
     try {
       final response = await _apiService.patch(
-        ApiConfig.userDetail(int.parse(id)),
+        '${ApiConfig.users}$id/',
         updates,
       );
       return UserModel.fromJson(response);
@@ -158,7 +155,7 @@ class BackendUserService {
   // Delete user
   Future<void> deleteUser(String id) async {
     try {
-      await _apiService.delete(ApiConfig.userDetail(int.parse(id)), includeAuth: false);
+      await _apiService.delete('${ApiConfig.users}$id/', includeAuth: false);
     } catch (e) {
       throw Exception('Failed to delete user: $e');
     }
@@ -169,10 +166,7 @@ class BackendUserService {
   // Get all roles (public endpoint - no auth needed for GET)
   Future<List<RoleModel>> getAllRoles() async {
     try {
-      final response = await _apiService.get(ApiConfig.roles, includeAuth: false).timeout(
-        const Duration(seconds: 5),
-        onTimeout: () => throw Exception('Connection timeout'),
-      );
+      final response = await _apiService.get(ApiConfig.roles, includeAuth: false);
       final List<dynamic> data = response is List ? response : (response['results'] ?? []);
       final roles = data.map((json) => RoleModel.fromJson(json)).toList();
       
@@ -218,7 +212,7 @@ class BackendUserService {
   // Get role by ID
   Future<RoleModel> getRoleById(int id) async {
     try {
-      final response = await _apiService.get(ApiConfig.roleDetail(id));
+      final response = await _apiService.get('${ApiConfig.roles}$id/');
       return RoleModel.fromJson(response);
     } catch (e) {
       throw Exception('Failed to fetch role: $e');
@@ -239,7 +233,7 @@ class BackendUserService {
   Future<RoleModel> updateRole(int id, RoleModel role) async {
     try {
       final response = await _apiService.put(
-        ApiConfig.roleDetail(id),
+        '${ApiConfig.roles}$id/',
         role.toJson(),
       );
       return RoleModel.fromJson(response);
@@ -251,7 +245,7 @@ class BackendUserService {
   // Delete role
   Future<void> deleteRole(int id) async {
     try {
-      await _apiService.delete(ApiConfig.roleDetail(id));
+      await _apiService.delete('${ApiConfig.roles}$id/');
     } catch (e) {
       throw Exception('Failed to delete role: $e');
     }
@@ -383,10 +377,7 @@ class BackendUserService {
       if (facultyId != null) {
         endpoint += '?faculty_id=$facultyId';
       }
-      final response = await _apiService.get(endpoint, includeAuth: false).timeout(
-        const Duration(seconds: 5),
-        onTimeout: () => throw Exception('Connection timeout'),
-      );
+      final response = await _apiService.get(endpoint, includeAuth: false);
       final List<dynamic> data = response is List ? response : (response['results'] ?? []);
       final programStudies = data.map((json) => ProgramStudyModel.fromJson(json)).toList();
       

@@ -5,6 +5,7 @@ import 'survey_management_page.dart';
 import 'user_form_page.dart';
 import 'home_page.dart';
 import 'questionnaire_list_page.dart';
+import 'user_profile_page.dart';
 import '../services/auth_service.dart';
 import '../services/backend_user_service.dart';
 import '../models/user_model.dart';
@@ -22,6 +23,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   List<RoleModel> roles = [];
   List<ProgramStudyModel> programStudies = [];
   bool isLoading = true;
+  bool _hasShownError = false;
   int currentPage = 1;
   int itemsPerPage = 10;
   String searchQuery = '';
@@ -72,16 +74,20 @@ class _UserManagementPageState extends State<UserManagementPage> {
       // Show info if any of the cached data indicators are present
     } else {
       print('📱 UserManagement: No data available (not even cached)');
-      if (mounted) {
+      if (mounted && !_hasShownError) {
+        _hasShownError = true;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Backend server is offline and no cached data available'),
+            content: const Text('Backend offline. No cached data available.'),
             backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 5),
+            duration: const Duration(seconds: 3),
             action: SnackBarAction(
               label: 'Retry',
               textColor: Colors.white,
-              onPressed: _loadData,
+              onPressed: () {
+                _hasShownError = false;
+                _loadData();
+              },
             ),
           ),
         );
@@ -92,8 +98,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
   List<UserModel> get filteredUsers {
     var filtered = users;
     
-    // Filter out admin users
-    filtered = filtered.where((user) => user.role?.name.toLowerCase() != 'admin').toList();
+    // Filter out admin, surveyor, and team prodi users (only show Alumni in user management)
+    filtered = filtered.where((user) {
+      final roleName = user.role?.name.toLowerCase() ?? '';
+      return roleName != 'admin' && roleName != 'surveyor' && roleName != 'team prodi';
+    }).toList();
     
     // Apply search filter
     if (searchQuery.isNotEmpty) {
@@ -298,7 +307,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
         title: Row(
           children: [
             Image.asset(
-              'assets/images/logo.png',
+              'assets/images/Logo ITK.png',
               height: 32,
               width: 32,
               errorBuilder: (context, error, stackTrace) {
@@ -557,8 +566,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         title: 'My Profile',
                         onTap: () {
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Profile page coming soon')),
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const UserProfilePage(),
+                            ),
                           );
                         },
                       ),
@@ -585,11 +597,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
           ),
         ),
       ),
-      body: Padding(
-        padding: EdgeInsets.only(
-          bottom: 0, // REMOVED ALL BOTTOM PADDING FOR TESTING
-        ),
-        child: Column(
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        child: Padding(
+          padding: EdgeInsets.only(
+            bottom: 0, // REMOVED ALL BOTTOM PADDING FOR TESTING
+          ),
+          child: Column(
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -702,7 +716,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                           hint: const Text('All Roles', style: TextStyle(fontSize: 12)),
                           underline: const SizedBox(),
                           isDense: true,
-                          items: ['All', ...roles.map((r) => r.name).toSet()].map((String value) {
+                          items: ['All', ...roles.where((r) => r.name.toLowerCase() == 'alumni').map((r) => r.name).toSet()].map((String value) {
                             return DropdownMenuItem<String>(
                               value: value == 'All' ? null : value,
                               child: Text(value, style: const TextStyle(fontSize: 12)),
@@ -853,7 +867,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                         _buildDataCell(user.username),
                                         _buildDataCell(user.nim ?? user.id),
                                         _buildDataCell(user.role?.name ?? '-'),
-                                        _buildDataCell(user.fakultas ?? ''),
+                                        _buildDataCell(user.fakultas ?? '-'),
                                         _buildActionCell(user),
                                       ],
                                     ),
@@ -945,9 +959,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
           ),
           ],
         ),
-      ),
-      ),
-    );
+      ), // Padding
+      ), // RefreshIndicator
+    ), // Scaffold
+    ); // SafeArea
   }
 
   Widget _buildHeaderCell(String text, {bool isCheckbox = false}) {

@@ -36,6 +36,15 @@ class _UserFormPageState extends State<UserFormPage> {
   @override
   void initState() {
     super.initState();
+    
+    // Debug logging
+    print('📋 UserFormPage initialized');
+    print('   Roles passed: ${widget.roles.length} - ${widget.roles.map((r) => r.name).join(", ")}');
+    print('   Program Studies passed: ${widget.programStudies.length}');
+    if (widget.programStudies.isNotEmpty) {
+      print('   First 3 programs: ${widget.programStudies.take(3).map((p) => p.name).join(", ")}');
+    }
+    
     _idController = TextEditingController(text: widget.user?.id ?? '');
     _usernameController = TextEditingController(text: widget.user?.username ?? '');
     _nimController = TextEditingController(text: widget.user?.nim ?? '');
@@ -49,6 +58,17 @@ class _UserFormPageState extends State<UserFormPage> {
     if (widget.user != null) {
       _selectedRole = widget.user!.role;
       _selectedProgramStudy = widget.user!.programStudy;
+    } else {
+      // For new users, auto-select Alumni role if available
+      try {
+        _selectedRole = widget.roles.firstWhere(
+          (role) => role.name.toLowerCase() == 'alumni',
+        );
+        print('   ✅ Auto-selected Alumni role');
+      } catch (e) {
+        _selectedRole = widget.roles.isNotEmpty ? widget.roles.first : null;
+        print('   ⚠️ Could not find Alumni role, selected: ${_selectedRole?.name}');
+      }
     }
   }
 
@@ -70,7 +90,7 @@ class _UserFormPageState extends State<UserFormPage> {
     setState(() => _isLoading = true);
 
     try {
-      final userData = {
+      final userData = <String, dynamic>{
         'id': _idController.text.trim(),
         'username': _usernameController.text.trim(),
         'nim': _nimController.text.trim().isEmpty ? null : _nimController.text.trim(),
@@ -88,7 +108,7 @@ class _UserFormPageState extends State<UserFormPage> {
         userData['password'] = password;
       }
       
-      // Pass userData map to preserve password field
+      // Pass userData map directly (not as UserModel)
       await widget.onSave(userData);
       
       if (mounted) {
@@ -212,17 +232,21 @@ class _UserFormPageState extends State<UserFormPage> {
             ),
             const SizedBox(height: 20),
 
-            // Role
+            // Role - Show Alumni role for user management
             DropdownButtonFormField<RoleModel>(
               value: _selectedRole,
               decoration: InputDecoration(
                 labelText: 'Role',
                 border: const OutlineInputBorder(),
-                helperText: widget.roles.isEmpty ? 'No roles available' : null,
+                helperText: widget.roles.isEmpty 
+                    ? 'No roles available' 
+                    : 'Total roles: ${widget.roles.length}',
               ),
               items: widget.roles.isEmpty
-                  ? null
-                  : widget.roles.map((role) {
+                  ? []
+                  : widget.roles
+                      .where((role) => role.name.toLowerCase() == 'alumni')
+                      .map((role) {
                       return DropdownMenuItem(
                         value: role,
                         child: Text(role.name),
@@ -242,10 +266,12 @@ class _UserFormPageState extends State<UserFormPage> {
               decoration: InputDecoration(
                 labelText: 'Program Studi',
                 border: const OutlineInputBorder(),
-                helperText: widget.programStudies.isEmpty ? 'No program studi available' : null,
+                helperText: widget.programStudies.isEmpty 
+                    ? 'No program studi available' 
+                    : 'Total: ${widget.programStudies.length} programs',
               ),
               items: widget.programStudies.isEmpty
-                  ? null
+                  ? []
                   : widget.programStudies.map((ps) {
                       return DropdownMenuItem(
                         value: ps,

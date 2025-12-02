@@ -34,7 +34,7 @@ class _AddSurveyPageState extends State<AddSurveyPage> {
           title: Row(
             children: [
               Image.asset(
-                'assets/images/logo.png',
+                'assets/images/Logo ITK.png',
                 height: 32,
                 width: 32,
                 fit: BoxFit.contain,

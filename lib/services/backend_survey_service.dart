@@ -9,8 +9,18 @@ class BackendSurveyService {
   /// Get all surveys (ordered by newest first)
   Future<List<dynamic>> getAllSurveys() async {
     try {
-      final response = await _apiService.get(ApiConfig.surveys);
-      return response is List ? response : (response['results'] ?? []);
+      // Try with auth first, fallback to no-auth if 401
+      try {
+        final response = await _apiService.get(ApiConfig.surveys);
+        return response is List ? response : (response['results'] ?? []);
+      } catch (e) {
+        // If auth fails, try without auth
+        if (e.toString().contains('401')) {
+          final response = await _apiService.get(ApiConfig.surveys, includeAuth: false);
+          return response is List ? response : (response['results'] ?? []);
+        }
+        rethrow;
+      }
     } catch (e) {
       throw Exception('Failed to fetch surveys: $e');
     }

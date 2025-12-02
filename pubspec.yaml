@@ -75,9 +75,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/logo.png"
+  image_path: "assets/images/Logo ITK.png"
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/logo.png"
+  adaptive_icon_foreground: "assets/images/Logo ITK.png"
   # Increase padding for original size (no zoom)
   adaptive_icon_foreground_inset: 32
   min_sdk_android: 21

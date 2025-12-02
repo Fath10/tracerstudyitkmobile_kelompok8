@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'employee_edit_page.dart';
-import '../database/database_helper.dart';
 import 'user_management_page.dart';
 import 'login_page.dart';
 import 'home_page.dart';
 import 'survey_management_page.dart';
 import 'take_questionnaire_page.dart';
 import 'questionnaire_list_page.dart';
+import 'user_profile_page.dart';
 import '../services/auth_service.dart';
+import '../services/backend_user_service.dart';
 import '../services/survey_storage.dart';
+import '../models/user_model.dart';
 
 class EmployeeDirectoryPage extends StatefulWidget {
   const EmployeeDirectoryPage({super.key});
@@ -19,7 +21,8 @@ class EmployeeDirectoryPage extends StatefulWidget {
 
 class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  List<Map<String, dynamic>> employees = [];
+  final _backendUserService = BackendUserService();
+  List<UserModel> employees = [];
   bool isLoading = true;
   int currentPage = 1;
   int itemsPerPage = 10;
@@ -35,34 +38,71 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
   }
 
   Future<void> _loadEmployees() async {
-    setState(() {
-      isLoading = true;
-    });
-
+    if (!mounted) return;
+    
+    print('📱 EmployeeDirectory: Starting data load...');
+    setState(() { isLoading = true; });
+    
     try {
-      final data = await DatabaseHelper.instance.getAllEmployees();
+      // Load users from backend
+      final usersData = await _backendUserService.getAllUsers();
+      print('📱 EmployeeDirectory: Got ${usersData.length} users from backend');
+      
+      if (!mounted) return;
+      
       setState(() {
-        employees = data;
+        employees = usersData;
         isLoading = false;
       });
-    } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading employees: ${e.toString()}')),
-        );
+      
+      print('📱 EmployeeDirectory: State updated - isLoading=$isLoading, employees=${employees.length}');
+      
+      if (usersData.isEmpty) {
+        print('📱 EmployeeDirectory: No data available');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('No employee data available'),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 3),
+              action: SnackBarAction(
+                label: 'Retry',
+                textColor: Colors.white,
+                onPressed: _loadEmployees,
+              ),
+            ),
+          );
+        }
       }
+    } catch (e) {
+      print('❌ EmployeeDirectory: Error loading data: $e');
+      if (!mounted) return;
+      
+      setState(() {
+        isLoading = false;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error loading employees: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'Retry',
+            textColor: Colors.white,
+            onPressed: _loadEmployees,
+          ),
+        ),
+      );
     }
   }
 
-  Future<void> _deleteEmployee(Map<String, dynamic> employee) async {
+  Future<void> _deleteEmployee(UserModel employee) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Employee'),
-        content: Text('Are you sure you want to delete ${employee['name']}?'),
+        content: Text('Are you sure you want to delete ${employee.username}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -78,7 +118,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     );
     if (confirmed == true && mounted) {
       try {
-        await DatabaseHelper.instance.deleteEmployee(employee['id']);
+        await _backendUserService.deleteUser(employee.id);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Employee deleted successfully'), backgroundColor: Colors.green),
@@ -86,7 +126,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
         }
         _loadEmployees();
         setState(() {
-          selectedEmployees.remove(employee['id']?.toString());
+          selectedEmployees.remove(employee.id);
         });
       } catch (e) {
         if (mounted) {
@@ -124,7 +164,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     
     try {
       for (final id in selectedEmployees) {
-        await DatabaseHelper.instance.deleteEmployee(int.parse(id));
+        await _backendUserService.deleteUser(id);
       }
       
       if (mounted) {
@@ -150,14 +190,20 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     }
   }
 
-  List<Map<String, dynamic>> get filteredEmployees {
+  List<UserModel> get filteredEmployees {
     var filtered = employees;
+    
+    // Filter to show only employees (admin, surveyor, team_prodi) - exclude regular users/alumni
+    filtered = filtered.where((user) {
+      final role = user.role?.name.toLowerCase() ?? '';
+      return role == 'admin' || role == 'surveyor' || role == 'team_prodi';
+    }).toList();
     
     // Apply search filter
     if (searchQuery.isNotEmpty) {
       filtered = filtered.where((employee) {
-        final name = employee['name']?.toString().toLowerCase() ?? '';
-        final email = employee['email']?.toString().toLowerCase() ?? '';
+        final name = employee.username.toLowerCase();
+        final email = (employee.email ?? '').toLowerCase();
         final query = searchQuery.toLowerCase();
         return name.contains(query) || email.contains(query);
       }).toList();
@@ -166,14 +212,14 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     // Apply department filter
     if (selectedDepartmentFilter != null && selectedDepartmentFilter != 'All') {
       filtered = filtered.where((employee) => 
-        employee['prodi']?.toString() == selectedDepartmentFilter
+        employee.programStudy?.name == selectedDepartmentFilter
       ).toList();
     }
     
     return filtered;
   }
 
-  List<Map<String, dynamic>> get paginatedEmployees {
+  List<UserModel> get paginatedEmployees {
     final filtered = filteredEmployees;
     final startIndex = (currentPage - 1) * itemsPerPage;
     final endIndex = (startIndex + itemsPerPage).clamp(0, filtered.length);
@@ -186,11 +232,13 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     return pages > 0 ? pages : 1;
   }
 
-  Future<void> _navigateToEmployeeEdit({Map<String, dynamic>? employee}) async {
+  Future<void> _navigateToEmployeeEdit({UserModel? employee}) async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => EmployeeEditPage(employee: employee),
+        builder: (context) => EmployeeEditPage(
+          employee: employee?.toJson(),
+        ),
       ),
     );
 
@@ -227,7 +275,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
         title: Row(
           children: [
             Image.asset(
-              'assets/images/logo.png',
+              'assets/images/Logo ITK.png',
               height: 28,
               width: 28,
               fit: BoxFit.contain,
@@ -505,8 +553,11 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                         title: 'My Profile',
                         onTap: () {
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Profile page coming soon')),
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const UserProfilePage(),
+                            ),
                           );
                         },
                       ),
@@ -535,8 +586,10 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
           ),
         ),
       ),
-      body: SafeArea(
-        child: Column(
+      body: RefreshIndicator(
+        onRefresh: _loadEmployees,
+        child: SafeArea(
+          child: Column(
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -580,7 +633,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                             value: selectedDepartmentFilter,
                             isExpanded: true,
                             hint: const Text('All', style: TextStyle(fontSize: 12)),
-                            items: ['All', ...employees.map((e) => e['prodi']?.toString() ?? '').where((s) => s.isNotEmpty).toSet().toList()]
+                            items: ['All', ...employees.map((e) => e.programStudy?.name ?? '').where((s) => s.isNotEmpty).toSet().toList()]
                                 .map((dept) => DropdownMenuItem(value: dept == 'All' ? null : dept, child: Text(dept, style: const TextStyle(fontSize: 12))))
                                 .toList(),
                             onChanged: (value) {
@@ -874,10 +927,11 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
               ),
             ),
           ],
+          ),
         ),
-      ),
-      ), // Close WillPopScope child
-    ); // Close WillPopScope
+      ), // Close SafeArea
+      ), // Close RefreshIndicator
+    ); // Close Scaffold
   }
 
   Widget _buildHeaderCell(String text, {bool isCheckbox = false}) {
@@ -886,16 +940,16 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
       alignment: Alignment.center,
       child: isCheckbox
           ? Checkbox(
-              value: paginatedEmployees.isNotEmpty && paginatedEmployees.every((emp) => selectedEmployees.contains(emp['id']?.toString())),
+              value: paginatedEmployees.isNotEmpty && paginatedEmployees.every((emp) => selectedEmployees.contains(emp.id)),
               onChanged: (value) {
                 setState(() {
                   if (value == true) {
                     // Select all employees on current page
-                    selectedEmployees.addAll(paginatedEmployees.map((emp) => emp['id']?.toString() ?? ''));
+                    selectedEmployees.addAll(paginatedEmployees.map((emp) => emp.id));
                   } else {
                     // Deselect all employees on current page
                     for (var emp in paginatedEmployees) {
-                      selectedEmployees.remove(emp['id']?.toString());
+                      selectedEmployees.remove(emp.id);
                     }
                   }
                 });
@@ -911,27 +965,27 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     );
   }
 
-  Widget _buildEmployeeRow(Map<String, dynamic> employee) {
-    final name = employee['name']?.toString() ?? 'Unknown';
-    final email = employee['email']?.toString() ?? 'N/A';
-    final employeeId = employee['id']?.toString() ?? '';
+  Widget _buildEmployeeRow(UserModel employee) {
+    final name = employee.username;
+    final email = employee.email ?? 'N/A';
+    final employeeId = employee.id;
     // Get role and format display
-    final role = employee['role']?.toString() ?? 'surveyor';
-    final prodi = employee['prodi']?.toString();
+    final role = employee.role?.name.toLowerCase() ?? 'surveyor';
+    final prodi = employee.programStudy?.name;
 
-    String accessDisplay = '';
+    String roleDisplay = '';
     switch (role) {
       case 'admin':
-        accessDisplay = 'Admin';
+        roleDisplay = 'Admin';
         break;
       case 'surveyor':
-        accessDisplay = 'Team Tracer';
+        roleDisplay = 'Team Tracer';
         break;
       case 'team_prodi':
-        accessDisplay = prodi != null ? 'Team Prodi ($prodi)' : 'Team Prodi';
+        roleDisplay = prodi != null ? 'Team Prodi ($prodi)' : 'Team Prodi';
         break;
       default:
-        accessDisplay = 'Unknown';
+        roleDisplay = 'Unknown';
     }
 
     return Container(
@@ -954,7 +1008,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                   _buildDataCell('', isCheckbox: true, employeeId: employeeId),
                   _buildDataCell(name),
                   _buildDataCell(email),
-                  _buildDataCell(accessDisplay),
+                  _buildDataCell(roleDisplay),
                   _buildActionCell(employee),
                 ],
               ),
@@ -993,7 +1047,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     );
   }
 
-  Widget _buildActionCell(Map<String, dynamic> employee) {
+  Widget _buildActionCell(UserModel employee) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 12),
       alignment: Alignment.center,

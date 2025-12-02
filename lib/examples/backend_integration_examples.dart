@@ -18,7 +18,7 @@ class BackendIntegrationExamples {
       if (success) {
         // User is logged in
         final currentUser = AuthService.currentUser;
-        print('Logged in as: ${currentUser?['username']}');
+        print('Logged in as: ${currentUser?.username}');
         
         // Navigate to home page
         if (context.mounted) {
@@ -151,7 +151,10 @@ class BackendIntegrationExamples {
         },
       ];
       
-      await surveyService.submitSurveyAnswers(surveyId, answers);
+      // Submit each answer individually
+      for (var answer in answers) {
+        await surveyService.createAnswer(surveyId, answer);
+      }
       print('Answers submitted successfully!');
     } catch (e) {
       print('Error submitting answers: $e');
@@ -262,8 +265,10 @@ class BackendIntegrationExamples {
         }
       }
       
-      // Step 5: Submit answers
-      await surveyService.submitSurveyAnswers(surveyId, answers);
+      // Step 5: Submit answers individually
+      for (var answer in answers) {
+        await surveyService.createAnswer(surveyId, answer);
+      }
       
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

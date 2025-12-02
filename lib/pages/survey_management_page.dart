@@ -6,8 +6,10 @@ import 'home_page.dart';
 import 'edit_survey_with_sections_page.dart';
 import 'take_questionnaire_page.dart';
 import 'questionnaire_list_page.dart';
+import 'user_profile_page.dart';
 import '../services/survey_storage.dart';
 import '../services/auth_service.dart';
+import '../services/backend_survey_service.dart';
 
 class SurveyManagementPage extends StatefulWidget {
   final Map<String, dynamic>? employee;
@@ -20,6 +22,9 @@ class SurveyManagementPage extends StatefulWidget {
 
 class _SurveyManagementPageState extends State<SurveyManagementPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+  final _surveyService = BackendSurveyService();
+  bool _isLoadingSurveys = false;
+  bool _hasShownBackendError = false;
   
   // Survey data lists
   List<Map<String, dynamic>> customSurveys = SurveyStorage.customSurveys;
@@ -42,24 +47,75 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
     _loadSurveys();
   }
   
-  void _loadSurveys() {
-    // Load template surveys from storage
-    print('DEBUG [SURVEY MANAGEMENT]: Loading surveys from storage...');
-    final allSurveys = SurveyStorage.getAllAvailableSurveys();
-    print('DEBUG [SURVEY MANAGEMENT]: getAllAvailableSurveys returned ${allSurveys.length} total surveys');
+  Future<void> _loadSurveys() async {
+    if (!mounted) return;
     
     setState(() {
-      templateSurveys = allSurveys.where((s) => s['isTemplate'] == true).toList();
-      customSurveys = SurveyStorage.customSurveys;
+      _isLoadingSurveys = true;
     });
     
-    print('DEBUG [SURVEY MANAGEMENT]: Loaded ${templateSurveys.length} template surveys');
-    for (int i = 0; i < templateSurveys.length; i++) {
-      final hasSections = templateSurveys[i]['sections'] != null;
-      final sectionCount = hasSections ? (templateSurveys[i]['sections'] as List).length : 0;
-      print('DEBUG [SURVEY MANAGEMENT]:   Template $i - "${templateSurveys[i]['title']}" has sections: $hasSections, count: $sectionCount');
-      if (hasSections && sectionCount > 0) {
-        print('DEBUG [SURVEY MANAGEMENT]:     Sections data: ${templateSurveys[i]['sections']}');
+    try {
+      print('DEBUG [SURVEY MANAGEMENT]: Loading surveys from backend...');
+      
+      // Load from backend first
+      final backendSurveys = await _surveyService.getAllSurveys();
+      print('DEBUG [SURVEY MANAGEMENT]: Fetched ${backendSurveys.length} surveys from backend');
+      
+      // Also load local storage surveys (fallback)
+      final allSurveys = SurveyStorage.getAllAvailableSurveys();
+      print('DEBUG [SURVEY MANAGEMENT]: Local storage has ${allSurveys.length} surveys');
+      
+      if (!mounted) return;
+      
+      setState(() {
+        // Combine backend and local surveys
+        templateSurveys = [...backendSurveys, ...allSurveys.where((s) => s['isTemplate'] == true)];
+        customSurveys = SurveyStorage.customSurveys;
+        _isLoadingSurveys = false;
+      });
+      
+      print('DEBUG [SURVEY MANAGEMENT]: Loaded ${templateSurveys.length} total surveys');
+    } catch (e) {
+      print('DEBUG [SURVEY MANAGEMENT]: Error loading surveys: $e');
+      print('DEBUG [SURVEY MANAGEMENT]: Error type: ${e.runtimeType}');
+      
+      if (!mounted) return;
+      
+      // Fallback to local storage
+      final allSurveys = SurveyStorage.getAllAvailableSurveys();
+      setState(() {
+        templateSurveys = allSurveys.where((s) => s['isTemplate'] == true).toList();
+        customSurveys = SurveyStorage.customSurveys;
+        _isLoadingSurveys = false;
+      });
+      
+      // Only show error once to avoid spam
+      if (!_hasShownBackendError) {
+        _hasShownBackendError = true;
+        
+        // Determine error message based on error type
+        String errorMessage;
+        if (e.toString().contains('SocketException') || e.toString().contains('Connection') || e.toString().contains('http://')) {
+          errorMessage = 'Backend server not available. Using local data only.';
+        } else {
+          errorMessage = 'Error loading surveys: ${e.toString()}';
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () {
+                _hasShownBackendError = false;
+                _loadSurveys();
+              },
+            ),
+          ),
+        );
       }
     }
   }
@@ -82,12 +138,19 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black87),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => HomePage(employee: widget.employee),
+                ),
+              );
+            },
           ),
           title: Row(
             children: [
               Image.asset(
-                'assets/images/logo.png',
+                'assets/images/Logo ITK.png',
                 height: 32,
                 width: 32,
                 fit: BoxFit.contain,
@@ -184,7 +247,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                         ),
                         child: Center(
                           child: Text(
-                            (widget.employee?['name']?.toString() ?? 'User').substring(0, 1).toUpperCase(),
+                            (AuthService.currentUser?.username ?? 'User').substring(0, 1).toUpperCase(),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 28,
@@ -197,7 +260,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                       
                       // User name
                       Text(
-                        widget.employee?['name']?.toString() ?? 'Your Name',
+                        AuthService.currentUser?.username ?? 'Your Name',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 20,
@@ -208,7 +271,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                       
                       // User ID/Email
                       Text(
-                        widget.employee?['email']?.toString() ?? '11221044',
+                        AuthService.currentUser?.nim ?? AuthService.currentUser?.email ?? '11221044',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
                           fontSize: 14,
@@ -341,8 +404,11 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                           title: 'My Profile',
                           onTap: () {
                             Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Profile page coming soon')),
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const UserProfilePage(),
+                              ),
                             );
                           },
                         ),
@@ -421,8 +487,13 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
 
             // Content
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _isLoadingSurveys
+                  ? const Center(child: CircularProgressIndicator())
+                  : RefreshIndicator(
+                      onRefresh: _loadSurveys,
+                      child: SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -466,39 +537,40 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                               ),
                               const SizedBox(width: 8),
                               PopupMenuButton<String>(
+                                padding: EdgeInsets.zero,
                                 icon: Icon(
                                   Icons.more_vert,
                                   size: 18,
-                                  color: Colors.grey[600],
+                                  color: Colors.grey[700],
                                 ),
                                 itemBuilder: (context) => [
                                   PopupMenuItem(
                                     value: 'edit',
                                     child: Row(
                                       children: [
-                                        const Icon(Icons.edit_outlined, size: 16),
+                                        Icon(Icons.edit_outlined, size: 18, color: Colors.blue[700]),
                                         const SizedBox(width: 8),
-                                        Text(isEditingLiveSection ? 'Save' : 'Edit Name'),
+                                        Text(isEditingLiveSection ? 'Save' : 'Edit Name', style: const TextStyle(fontSize: 13)),
                                       ],
                                     ),
                                   ),
-                                  const PopupMenuItem(
+                                  PopupMenuItem(
                                     value: 'delete',
                                     child: Row(
                                       children: [
-                                        Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                                        SizedBox(width: 8),
-                                        Text('Delete Category', style: TextStyle(color: Colors.red)),
+                                        Icon(Icons.delete_outline, size: 18, color: Colors.red[700]),
+                                        const SizedBox(width: 8),
+                                        Text('Delete Category', style: TextStyle(fontSize: 13, color: Colors.red[700])),
                                       ],
                                     ),
                                   ),
-                                  const PopupMenuItem(
+                                  PopupMenuItem(
                                     value: 'add_survey',
                                     child: Row(
                                       children: [
-                                        Icon(Icons.add_circle_outline, size: 16),
-                                        SizedBox(width: 8),
-                                        Text('Add Survey'),
+                                        Icon(Icons.add_circle_outline, size: 18, color: Colors.green[700]),
+                                        const SizedBox(width: 8),
+                                        const Text('Add Survey', style: TextStyle(fontSize: 13)),
                                       ],
                                     ),
                                   ),
@@ -548,9 +620,36 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                           initialTab: 0,
                                         ),
                                       ),
-                                    ).then((result) {
+                                    ).then((result) async {
                                       if (result != null && result is Map<String, dynamic>) {
-                                        setState(() {});
+                                        // Save new survey to backend
+                                        try {
+                                          final savedSurvey = await _surveyService.createSurvey(result);
+                                          print('DEBUG [SURVEY MANAGEMENT]: New survey saved to backend with ID: ${savedSurvey['id']}');
+                                          
+                                          // Reload surveys to show the new one
+                                          await _loadSurveys();
+                                          
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Survey created successfully!'),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          print('DEBUG [SURVEY MANAGEMENT]: Failed to save new survey to backend: $e');
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Warning: Survey created locally only. Could not save to server.'),
+                                                backgroundColor: Colors.orange,
+                                              ),
+                                            );
+                                          }
+                                          setState(() {}); // Refresh UI with local data
+                                        }
                                       }
                                     });
                                   }
@@ -868,39 +967,45 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                               ),
                                             ),
                                             PopupMenuButton<String>(
+                                              padding: EdgeInsets.zero,
                                               onSelected: (value) {
                                                 switch (value) {
                                                   case 'edit':
                                                     _editSurvey(survey, index, isCustom: true);
                                                     break;
                                                   case 'delete':
-                                                    _deleteSurvey(index, isCustom: true, surveyName: survey['name']);
+                                                    _deleteSurvey(
+                                                      index, 
+                                                      isCustom: true, 
+                                                      surveyName: survey['name'],
+                                                      surveyId: survey['id'],
+                                                    );
                                                     break;
                                                 }
                                               },
                                               icon: Icon(
                                                 Icons.more_vert,
-                                                size: 16,
-                                                color: Colors.grey[600],
+                                                size: 18,
+                                                color: Colors.grey[700],
                                               ),
                                               itemBuilder: (context) => [
-                                                const PopupMenuItem(
+                                                PopupMenuItem(
                                                   value: 'edit',
                                                   child: Row(
                                                     children: [
-                                                      Icon(Icons.edit_outlined, size: 16),
-                                                      SizedBox(width: 8),
-                                                      Text('Edit Survey'),
+                                                      Icon(Icons.edit_outlined, size: 18, color: Colors.blue[700]),
+                                                      const SizedBox(width: 8),
+                                                      const Text('Edit', style: TextStyle(fontSize: 13)),
                                                     ],
                                                   ),
                                                 ),
-                                                const PopupMenuItem(
+                                                PopupMenuItem(
                                                   value: 'delete',
                                                   child: Row(
                                                     children: [
-                                                      Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                                                      SizedBox(width: 8),
-                                                      Text('Delete Survey', style: TextStyle(color: Colors.red)),
+                                                      Icon(Icons.delete_outline, size: 18, color: Colors.red[700]),
+                                                      const SizedBox(width: 8),
+                                                      Text('Delete', style: TextStyle(fontSize: 13, color: Colors.red[700])),
                                                     ],
                                                   ),
                                                 ),
@@ -980,21 +1085,22 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                         ),
                                       ),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 4),
                               PopupMenuButton<String>(
+                                padding: EdgeInsets.zero,
                                 icon: Icon(
                                   Icons.more_vert,
                                   size: 18,
-                                  color: Colors.grey[600],
+                                  color: Colors.grey[700],
                                 ),
                                 itemBuilder: (context) => [
                                   PopupMenuItem(
                                     value: 'edit',
                                     child: Row(
                                       children: [
-                                        const Icon(Icons.edit_outlined, size: 16),
+                                        Icon(Icons.edit_outlined, size: 18, color: Colors.blue[700]),
                                         const SizedBox(width: 8),
-                                        Text(isEditingTemplateSection ? 'Save' : 'Edit Name'),
+                                        Text(isEditingTemplateSection ? 'Save' : 'Edit Name', style: const TextStyle(fontSize: 13)),
                                       ],
                                     ),
                                   ),
@@ -1064,9 +1170,36 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                           initialTab: 0,
                                         ),
                                       ),
-                                    ).then((result) {
+                                    ).then((result) async {
                                       if (result != null && result is Map<String, dynamic>) {
-                                        setState(() {});
+                                        // Save new survey to backend
+                                        try {
+                                          final savedSurvey = await _surveyService.createSurvey(result);
+                                          print('DEBUG [SURVEY MANAGEMENT]: New survey saved to backend with ID: ${savedSurvey['id']}');
+                                          
+                                          // Reload surveys to show the new one
+                                          await _loadSurveys();
+                                          
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Survey created successfully!'),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          }
+                                        } catch (e) {
+                                          print('DEBUG [SURVEY MANAGEMENT]: Failed to save new survey to backend: $e');
+                                          if (mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('Warning: Survey created locally only. Could not save to server.'),
+                                                backgroundColor: Colors.orange,
+                                              ),
+                                            );
+                                          }
+                                          setState(() {}); // Refresh UI with local data
+                                        }
                                       }
                                     });
                                   }
@@ -1131,7 +1264,12 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                   _editSurvey(template, index, isCustom: false);
                                                   break;
                                                 case 'delete':
-                                                  _deleteSurvey(index, isCustom: false, surveyName: template['title']);
+                                                  _deleteSurvey(
+                                                    index, 
+                                                    isCustom: false, 
+                                                    surveyName: template['title'],
+                                                    surveyId: template['id'],
+                                                  );
                                                   break;
                                                 case 'add_questionnaire':
                                                   _takeSurvey(template);
@@ -1140,37 +1278,37 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                             },
                                             icon: Icon(
                                               Icons.more_vert,
-                                              size: 16,
-                                              color: Colors.grey[600],
+                                              size: 18,
+                                              color: Colors.grey[700],
                                             ),
                                             itemBuilder: (context) => [
-                                              const PopupMenuItem(
+                                              PopupMenuItem(
                                                 value: 'edit',
                                                 child: Row(
                                                   children: [
-                                                    Icon(Icons.edit_outlined, size: 16),
-                                                    SizedBox(width: 8),
-                                                    Text('Edit'),
+                                                    Icon(Icons.edit_outlined, size: 18, color: Colors.blue[700]),
+                                                    const SizedBox(width: 8),
+                                                    const Text('Edit', style: TextStyle(fontSize: 13)),
                                                   ],
                                                 ),
                                               ),
-                                              const PopupMenuItem(
-                                                value: 'delete',
-                                                child: Row(
-                                                  children: [
-                                                    Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                                                    SizedBox(width: 8),
-                                                    Text('Delete', style: TextStyle(color: Colors.red)),
-                                                  ],
-                                                ),
-                                              ),
-                                              const PopupMenuItem(
+                                              PopupMenuItem(
                                                 value: 'add_questionnaire',
                                                 child: Row(
                                                   children: [
-                                                    Icon(Icons.add_circle_outline, size: 16),
-                                                    SizedBox(width: 8),
-                                                    Text('Add New Survey'),
+                                                    Icon(Icons.add_circle_outline, size: 18, color: Colors.green[700]),
+                                                    const SizedBox(width: 8),
+                                                    const Text('Take Survey', style: TextStyle(fontSize: 13)),
+                                                  ],
+                                                ),
+                                              ),
+                                              PopupMenuItem(
+                                                value: 'delete',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(Icons.delete_outline, size: 18, color: Colors.red[700]),
+                                                    const SizedBox(width: 8),
+                                                    Text('Delete', style: TextStyle(fontSize: 13, color: Colors.red[700])),
                                                   ],
                                                 ),
                                               ),
@@ -1221,41 +1359,109 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Expanded(
-                                child: Row(
-                                  children: [
-                                    Flexible(
-                                      child: Text(
-                                        section['title'] as String,
-                                        style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Icon(
-                                      Icons.edit,
-                                      size: 18,
-                                      color: Colors.blue[600],
-                                    ),
-                                  ],
+                                child: Text(
+                                  section['title'] as String,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.black87,
+                                  ),
                                 ),
                               ),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                                onPressed: () {
-                                  setState(() {
-                                    customSections.remove(section);
-                                  });
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Section "${section['title']}" deleted'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
+                              PopupMenuButton<String>(
+                                padding: EdgeInsets.zero,
+                                icon: Icon(Icons.more_vert, size: 18, color: Colors.grey[700]),
+                                onSelected: (value) async {
+                                  if (value == 'edit') {
+                                    _showEditSectionDialog(section);
+                                  } else if (value == 'delete') {
+                                    _deleteSection(section);
+                                  } else if (value == 'add_survey') {
+                                    // Add new survey to this custom section
+                                    final result = await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => EditSurveyWithSectionsPage(
+                                          survey: {
+                                            'name': 'New Survey',
+                                            'description': 'Survey description',
+                                            'sections': [],
+                                            'isLive': false,
+                                          },
+                                          initialTab: 0,
+                                        ),
+                                      ),
+                                    );
+                                    
+                                    if (result != null && result is Map<String, dynamic>) {
+                                      // Save to backend
+                                      try {
+                                        final savedSurvey = await _surveyService.createSurvey(result);
+                                        print('DEBUG [SURVEY MANAGEMENT]: New survey saved to backend with ID: ${savedSurvey['id']}');
+                                        
+                                        // Add to custom section
+                                        setState(() {
+                                          (section['surveys'] as List).add({
+                                            ...savedSurvey,
+                                            'title': savedSurvey['name'],
+                                            'subtitle': savedSurvey['description'],
+                                          });
+                                        });
+                                        
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Survey added successfully!'),
+                                              backgroundColor: Colors.green,
+                                            ),
+                                          );
+                                        }
+                                      } catch (e) {
+                                        print('DEBUG [SURVEY MANAGEMENT]: Failed to save survey: $e');
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(
+                                              content: Text('Failed to add survey: $e'),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    }
+                                  }
                                 },
-                                tooltip: 'Delete section',
+                                itemBuilder: (context) => [
+                                  PopupMenuItem<String>(
+                                    value: 'edit',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.edit_outlined, size: 18, color: Colors.blue[700]),
+                                        const SizedBox(width: 8),
+                                        const Text('Edit', style: TextStyle(fontSize: 13)),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem<String>(
+                                    value: 'add_survey',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.add_circle_outline, size: 18, color: Colors.green[700]),
+                                        const SizedBox(width: 8),
+                                        const Text('Add Survey', style: TextStyle(fontSize: 13)),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuItem<String>(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete_outline, size: 18, color: Colors.red[700]),
+                                        const SizedBox(width: 8),
+                                        Text('Delete', style: TextStyle(fontSize: 13, color: Colors.red[700])),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -1306,26 +1512,107 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                   ),
                                                 ),
                                                 PopupMenuButton<String>(
-                                                  onSelected: (value) {
-                                                    if (value == 'delete') {
+                                                  onSelected: (value) async {
+                                                    if (value == 'edit') {
+                                                      // Edit survey
+                                                      final result = await Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder: (context) => EditSurveyWithSectionsPage(
+                                                            survey: {
+                                                              'id': survey['id'],
+                                                              'name': survey['title'] ?? survey['name'],
+                                                              'title': survey['title'] ?? survey['name'],
+                                                              'description': survey['subtitle'] ?? survey['description'] ?? '',
+                                                              'questions': survey['questions'],
+                                                              'sections': survey['sections'],
+                                                              'isDefault': survey['isDefault'] ?? false,
+                                                              'isTemplate': survey['isTemplate'] ?? false,
+                                                              'isLive': survey['isLive'] ?? false,
+                                                            },
+                                                          ),
+                                                        ),
+                                                      );
+                                                      
+                                                      if (result != null && result is Map<String, dynamic>) {
+                                                        // Update in backend if has ID
+                                                        if (survey['id'] != null) {
+                                                          try {
+                                                            await _surveyService.updateSurvey(survey['id'], result);
+                                                            print('DEBUG [SURVEY MANAGEMENT]: Survey updated in backend');
+                                                          } catch (e) {
+                                                            print('DEBUG [SURVEY MANAGEMENT]: Failed to update survey: $e');
+                                                          }
+                                                        }
+                                                        
+                                                        // Update in UI
+                                                        setState(() {
+                                                          (section['surveys'] as List)[index] = {
+                                                            ...result,
+                                                            'title': result['name'],
+                                                            'subtitle': result['description'],
+                                                          };
+                                                        });
+                                                        
+                                                        if (mounted) {
+                                                          ScaffoldMessenger.of(context).showSnackBar(
+                                                            const SnackBar(
+                                                              content: Text('Survey updated successfully!'),
+                                                              backgroundColor: Colors.green,
+                                                            ),
+                                                          );
+                                                        }
+                                                      }
+                                                    } else if (value == 'delete') {
+                                                      // Delete survey from backend if has ID
+                                                      if (survey['id'] != null) {
+                                                        try {
+                                                          await _surveyService.deleteSurvey(survey['id']);
+                                                          print('DEBUG [SURVEY MANAGEMENT]: Survey deleted from backend');
+                                                        } catch (e) {
+                                                          print('DEBUG [SURVEY MANAGEMENT]: Failed to delete from backend: $e');
+                                                        }
+                                                      }
+                                                      
+                                                      // Remove from UI
                                                       setState(() {
                                                         (section['surveys'] as List).removeAt(index);
                                                       });
+                                                      
+                                                      if (mounted) {
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          const SnackBar(
+                                                            content: Text('Survey deleted successfully!'),
+                                                            backgroundColor: Colors.orange,
+                                                          ),
+                                                        );
+                                                      }
                                                     }
                                                   },
+                                                  padding: EdgeInsets.zero,
                                                   icon: Icon(
                                                     Icons.more_vert,
-                                                    size: 16,
-                                                    color: Colors.grey[600],
+                                                    size: 18,
+                                                    color: Colors.grey[700],
                                                   ),
                                                   itemBuilder: (context) => [
-                                                    const PopupMenuItem(
+                                                    PopupMenuItem(
+                                                      value: 'edit',
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(Icons.edit_outlined, size: 18, color: Colors.blue[700]),
+                                                          const SizedBox(width: 8),
+                                                          const Text('Edit', style: TextStyle(fontSize: 13)),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    PopupMenuItem(
                                                       value: 'delete',
                                                       child: Row(
                                                         children: [
-                                                          Icon(Icons.delete_outline, size: 16, color: Colors.red),
-                                                          SizedBox(width: 8),
-                                                          Text('Delete'),
+                                                          Icon(Icons.delete_outline, size: 18, color: Colors.red[700]),
+                                                          const SizedBox(width: 8),
+                                                          Text('Delete', style: TextStyle(fontSize: 13, color: Colors.red[700])),
                                                         ],
                                                       ),
                                                     ),
@@ -1387,6 +1674,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                     const SizedBox(height: 24),
                   ],
                 ),
+                    ),
               ),
             ),
           ],
@@ -1478,9 +1766,84 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
     );
   }
 
+  void _showEditSectionDialog(Map<String, dynamic> section) {
+    final controller = TextEditingController(text: section['title']);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Section'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Section Name',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                setState(() {
+                  section['title'] = controller.text.trim();
+                });
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Section updated successfully'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteSection(Map<String, dynamic> section) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Section'),
+        content: Text('Are you sure you want to delete "${section['title']}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                customSections.remove(section);
+              });
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Section "${section['title']}" deleted'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _editSurvey(Map<String, dynamic> survey, int index, {bool isCustom = false}) async {
     // Convert survey data to match EditSurveyWithSectionsPage expectations
     final surveyData = {
+      'id': survey['id'], // Include survey ID for backend updates
       'name': survey['title'] ?? survey['name'] ?? 'Untitled Survey',
       'title': survey['title'] ?? survey['name'] ?? 'Untitled Survey',
       'description': survey['subtitle'] ?? survey['description'] ?? 'No description',
@@ -1511,6 +1874,25 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
       print('DEBUG [SURVEY MANAGEMENT]: Result isDefault: ${result['isDefault']}');
       print('DEBUG [SURVEY MANAGEMENT]: Result sections: ${result['sections']}');
       
+      // Try to save to backend first if survey has an ID
+      if (survey['id'] != null) {
+        try {
+          await _surveyService.updateSurvey(survey['id'], result);
+          print('DEBUG [SURVEY MANAGEMENT]: Survey successfully saved to backend');
+        } catch (e) {
+          print('DEBUG [SURVEY MANAGEMENT]: Failed to save to backend: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Warning: Could not save to server. Changes saved locally only.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+      }
+      
+      // Update local storage as fallback
       if (isCustom) {
         print('DEBUG [SURVEY MANAGEMENT]: Updating custom survey at index $index');
         SurveyStorage.updateSurvey(index, result);
@@ -1543,7 +1925,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
     }
   }
 
-  void _deleteSurvey(int index, {bool isCustom = false, required String surveyName}) {
+  void _deleteSurvey(int index, {bool isCustom = false, required String surveyName, int? surveyId}) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -1556,7 +1938,26 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
+                // Try to delete from backend first if survey has an ID
+                if (surveyId != null) {
+                  try {
+                    await _surveyService.deleteSurvey(surveyId);
+                    print('DEBUG [SURVEY MANAGEMENT]: Survey deleted from backend');
+                  } catch (e) {
+                    print('DEBUG [SURVEY MANAGEMENT]: Failed to delete from backend: $e');
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Warning: Could not delete from server. Removing locally only.'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                    }
+                  }
+                }
+                
+                // Remove from local storage
                 if (isCustom) {
                   SurveyStorage.removeSurvey(index);
                 } else {
@@ -1596,6 +1997,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
       MaterialPageRoute(
         builder: (context) => TakeQuestionnairePage(
           survey: {
+            'id': survey['id'] ?? 0, // Include survey ID for backend submission
             'name': survey['title'] ?? survey['name'] ?? 'Survey',
             'description': survey['subtitle'] ?? survey['description'] ?? 'Please answer the following questions',
             'questions': survey['questions'], // Pass the actual survey questions

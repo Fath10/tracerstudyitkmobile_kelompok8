@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import '../database/database_helper.dart';
+import '../services/backend_survey_service.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -10,7 +10,9 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  final _surveyService = BackendSurveyService();
   bool _isLoading = true;
+  bool _hasTriedLoading = false;
   Map<String, dynamic> _statistics = {};
   List<Map<String, dynamic>> _responses = [];
 
@@ -21,18 +23,68 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Future<void> _loadDashboardData() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     
     try {
-      // Load all survey responses
-      _responses = await DatabaseHelper.instance.getAllResponses();
+      // Load all surveys - don't show error on first load
+      final surveys = await _surveyService.getAllSurveys();
       
+      // Collect all responses from all surveys
+      _responses = [];
+      for (var survey in surveys) {
+        try {
+          final surveyId = survey['id'] as int;
+          final answers = await _surveyService.getSurveyAnswers(surveyId);
+          
+          // Convert answers to the expected format
+          for (var answer in answers) {
+            _responses.add({
+              'survey_id': surveyId,
+              'survey_name': survey['name'] ?? 'Unknown Survey',
+              'answers': answer['answer_text'] ?? '{}',
+              'created_at': answer['created_at'] ?? DateTime.now().toIso8601String(),
+            });
+          }
+        } catch (e) {
+          debugPrint('Error loading responses for survey: $e');
+        }
+      }
+      
+      if (!mounted) return;
       // Calculate statistics
       _calculateStatistics();
+      _hasTriedLoading = true;
     } catch (e) {
       debugPrint('Error loading dashboard data: $e');
+      // Only show error on retry attempts, not on initial load
+      if (mounted && _hasTriedLoading) {
+        String errorMessage = 'Backend offline. Dashboard unavailable.';
+        if (e.toString().contains('TimeoutException')) {
+          errorMessage = 'Backend timeout. Check connection.';
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () {
+                _loadDashboardData();
+              },
+            ),
+          ),
+        );
+      } else {
+        _hasTriedLoading = true;
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

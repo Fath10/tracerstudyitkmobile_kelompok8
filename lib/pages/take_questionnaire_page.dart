@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'home_page.dart';
 import 'login_page.dart';
+import 'user_profile_page.dart';
 import '../services/survey_storage.dart';
-import '../database/database_helper.dart';
+import '../services/backend_survey_service.dart';
 import '../services/auth_service.dart';
 
 class TakeQuestionnairePage extends StatefulWidget {
@@ -78,6 +79,14 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // Autofill user information from logged in user
+    _nameController.text = AuthService.currentUser?.username ?? '';
+    _nimController.text = AuthService.currentUser?.nim ?? AuthService.currentUser?.id ?? '';
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _nimController.dispose();
@@ -101,7 +110,7 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
           title: Row(
             children: [
               Image.asset(
-                'assets/images/logo.png',
+                'assets/images/Logo ITK.png',
                 height: 32,
                 width: 32,
                 fit: BoxFit.contain,
@@ -277,8 +286,11 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
                           title: 'My Profile',
                           onTap: () {
                             Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Profile page coming soon')),
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const UserProfilePage(),
+                              ),
                             );
                           },
                         ),
@@ -1019,22 +1031,51 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
         }
       });
       
-      // Save response to database
-      final response = {
-        'surveyName': widget.survey['name'],
-        'userId': AuthService.currentUser?.id,
-        'userEmail': AuthService.currentUser?.email ?? 'unknown',
-        'userName': AuthService.currentUser?.username ?? 'Unknown User',
-        'answers': jsonEncode(serializableAnswers), // Convert to JSON string
-      };
+      // Check if this is a local survey or backend survey
+      final surveyIdRaw = widget.survey['id'];
+      final surveyName = widget.survey['name'] ?? widget.survey['title'] ?? 'Unknown Survey';
       
-      await DatabaseHelper.instance.saveResponse(response);
+      // Handle survey submission
+      if (surveyIdRaw == null) {
+        // This is a local survey from SurveyStorage (no backend ID)
+        print('📝 Survey submitted locally: $surveyName');
+        print('   User: ${AuthService.currentUser?.username}');
+        print('   Answers: ${serializableAnswers.length} questions');
+        
+        // For local surveys, just show success message
+        // Backend integration can be added later when surveys are created via backend
+      } else {
+        // This is a backend survey - submit to API
+        final surveyService = BackendSurveyService();
+        int surveyId;
+        
+        if (surveyIdRaw is int) {
+          surveyId = surveyIdRaw;
+        } else if (surveyIdRaw is String) {
+          surveyId = int.tryParse(surveyIdRaw) ?? 0;
+          if (surveyId == 0) {
+            throw Exception('Invalid survey ID format: "$surveyIdRaw"');
+          }
+        } else {
+          throw Exception('Invalid survey ID type: ${surveyIdRaw.runtimeType}');
+        }
+        
+        // Prepare answer data for backend
+        final answerData = {
+          'survey': surveyId,
+          'user': AuthService.currentUser?.id,
+          'answer_text': jsonEncode(serializableAnswers),
+        };
+        
+        await surveyService.createAnswer(surveyId, answerData);
+      }
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Survey submitted successfully!'),
             backgroundColor: Colors.green,
+            duration: Duration(seconds: 3),
           ),
         );
         

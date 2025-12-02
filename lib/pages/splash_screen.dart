@@ -61,7 +61,7 @@ class _SplashScreenState extends State<SplashScreen> {
               width: 200,
               height: 200,
               child: Image.asset(
-                'assets/images/logo.png',
+                'assets/images/Logo ITK.png',
                 fit: BoxFit.contain,
                 errorBuilder: (context, error, stackTrace) {
                   return Icon(

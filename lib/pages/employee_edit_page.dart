@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../database/database_helper.dart';
+import '../services/backend_user_service.dart';
 
 class EmployeeEditPage extends StatefulWidget {
   final int? employeeId;
@@ -13,6 +13,7 @@ class EmployeeEditPage extends StatefulWidget {
 
 class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
+  final _backendUserService = BackendUserService();
   late TabController _tabController;
   
   // Controllers
@@ -25,8 +26,6 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
   late TextEditingController _birthdayController;
   
   // Dropdown values
-  String? _selectedDepartment;
-  String? _selectedPosition;
   String _selectedRole = 'surveyor'; // Default role
   String? _selectedProdi; // Only for team_prodi role
   
@@ -62,10 +61,6 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
     _birthdayController = TextEditingController(
       text: widget.employee?['birthday']?.toString() ?? '',
     );
-    
-    // Load dropdown values
-    _selectedDepartment = widget.employee?['department']?.toString();
-    _selectedPosition = widget.employee?['position']?.toString();
     
     // Load role and prodi
     _selectedRole = widget.employee?['role']?.toString() ?? 'surveyor';
@@ -120,39 +115,50 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
     super.dispose();
   }
 
+  // Helper method to map prodi name to ID
+  // TODO: Replace with dynamic fetching from backend
+  int? _getProdiId(String prodiName) {
+    final prodiMap = {
+      'Informatics': 1,
+      'Mathematics': 2,
+      'Chemistry': 3,
+    };
+    return prodiMap[prodiName];
+  }
+
   void _handleSave() async {
     if (_formKey.currentState!.validate()) {
       try {
-        final employeeData = {
-          'name': _nameController.text,
+        final employeeData = <String, dynamic>{
+          'username': _nameController.text,
           'email': _emailController.text,
-          'phone': _phoneController.text.isEmpty ? null : _phoneController.text,
-          'nikKtp': _nikKtpController.text.isEmpty ? null : _nikKtpController.text,
-          'placeOfBirth': _placeOfBirthController.text.isEmpty ? null : _placeOfBirthController.text,
+          'phone_number': _phoneController.text.isEmpty ? null : _phoneController.text,
+          'nik_ktp': _nikKtpController.text.isEmpty ? null : _nikKtpController.text,
+          'place_of_birth': _placeOfBirthController.text.isEmpty ? null : _placeOfBirthController.text,
           'birthday': _birthdayController.text.isEmpty ? null : _birthdayController.text,
-          'department': _selectedDepartment,
-          'position': _selectedPosition,
-          'role': _selectedRole,
-          'prodi': _selectedRole == 'team_prodi' ? _selectedProdi : null,
+          'role_id': _selectedRole == 'admin' ? 1 : (_selectedRole == 'surveyor' ? 2 : 3),
+          'program_study_id': _selectedRole == 'team_prodi' && _selectedProdi != null ? _getProdiId(_selectedProdi!) : null,
         };
         
         if (isNewEmployee) {
-          // Creating new employee
-          employeeData['password'] = _passwordController.text;
-          await DatabaseHelper.instance.createEmployee(employeeData);
+          // Creating new employee - need to provide id and password
+          employeeData['id'] = _emailController.text.split('@')[0]; // Use email prefix as ID
+          employeeData['password'] = _passwordController.text.isNotEmpty ? _passwordController.text : 'password123';
+          await _backendUserService.createUser(employeeData);
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Employee created successfully')),
+            const SnackBar(content: Text('Employee created successfully'), backgroundColor: Colors.green),
           );
         } else {
           // Updating existing employee
           if (_passwordController.text.isNotEmpty) {
             employeeData['password'] = _passwordController.text;
           }
-          await DatabaseHelper.instance.updateEmployee(widget.employee!['id'] as int, employeeData);
+          final userId = widget.employee!['id'].toString();
+          await _backendUserService.updateUser(userId, employeeData);
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Employee updated successfully')),
+            const SnackBar(content: Text('Employee updated successfully'), backgroundColor: Colors.green),
           );
         }
         
@@ -181,18 +187,19 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
           TextButton(
             onPressed: () async {
               try {
-                await DatabaseHelper.instance.deleteEmployee(widget.employee!['id'] as int);
+                final userId = widget.employee!['id'].toString();
+                await _backendUserService.deleteUser(userId);
                 if (!mounted) return;
                 Navigator.pop(context); // Close dialog
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Employee deleted successfully')),
+                  const SnackBar(content: Text('Employee deleted successfully'), backgroundColor: Colors.green),
                 );
                 Navigator.pop(context, true); // Close edit page
               } catch (e) {
                 if (!mounted) return;
                 Navigator.pop(context); // Close dialog
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error deleting employee: ${e.toString()}')),
+                  SnackBar(content: Text('Error deleting employee: ${e.toString()}'), backgroundColor: Colors.red),
                 );
               }
             },
@@ -235,7 +242,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
         title: Row(
           children: [
             Image.asset(
-              'assets/images/logo.png',
+              'assets/images/Logo ITK.png',
               height: 32,
               width: 32,
               fit: BoxFit.contain,

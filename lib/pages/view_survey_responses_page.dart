@@ -1,17 +1,41 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import '../database/database_helper.dart';
+import '../services/backend_survey_service.dart';
 import '../models/survey_section.dart';
 
-class ViewSurveyResponsesPage extends StatelessWidget {
+class ViewSurveyResponsesPage extends StatefulWidget {
+  final int surveyId;
   final String surveyName;
   final List<SurveySection> sections;
 
   const ViewSurveyResponsesPage({
     super.key,
+    required this.surveyId,
     required this.surveyName,
     required this.sections,
   });
+
+  @override
+  State<ViewSurveyResponsesPage> createState() => _ViewSurveyResponsesPageState();
+}
+
+class _ViewSurveyResponsesPageState extends State<ViewSurveyResponsesPage> {
+  final _surveyService = BackendSurveyService();
+
+  Future<List<Map<String, dynamic>>> _loadResponses() async {
+    try {
+      final answers = await _surveyService.getSurveyAnswers(widget.surveyId);
+      return answers.map((answer) => {
+        'id': answer['id'],
+        'answers': answer['answer_text'] ?? '{}',
+        'submittedAt': answer['created_at'] ?? DateTime.now().toIso8601String(),
+        'userId': answer['user'],
+      }).toList();
+    } catch (e) {
+      debugPrint('Error loading responses: $e');
+      rethrow;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +45,7 @@ class ViewSurveyResponsesPage extends StatelessWidget {
         backgroundColor: Colors.purple,
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: DatabaseHelper.instance.getResponsesBySurvey(surveyName),
+        future: _loadResponses(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -114,11 +138,11 @@ class ViewSurveyResponsesPage extends StatelessWidget {
                         ],
                       ),
                       const Divider(height: 24),
-                      ...sections.map((section) {
+                      ...widget.sections.map((section) {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            if (sections.length > 1) ...[
+                            if (widget.sections.length > 1) ...[
                               Text(
                                 section.title,
                                 style: const TextStyle(

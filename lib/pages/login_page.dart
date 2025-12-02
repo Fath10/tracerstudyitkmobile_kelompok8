@@ -148,7 +148,7 @@ class _LoginPageState extends State<LoginPage> {
                         width: 150,
                         height: 150,
                         child: Image.asset(
-                          'assets/images/logo.png',
+                          'assets/images/Logo ITK.png',
                           fit: BoxFit.contain,
                           errorBuilder: (context, error, stackTrace) {
                             return Icon(
@@ -248,6 +248,17 @@ class _LoginPageState extends State<LoginPage> {
                               }
                               return null;
                             },
+                          ),
+                          const SizedBox(height: 8),
+                          
+                          // Password hint
+                          Text(
+                            'Default password format: UserID-PhoneNumber',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                              fontStyle: FontStyle.italic,
+                            ),
                           ),
                           const SizedBox(height: 16),
                           

@@ -41,7 +41,7 @@ class _QuestionnaireListPageState extends State<QuestionnaireListPage> {
         title: Row(
           children: [
             Image.asset(
-              'assets/images/logo.png',
+              'assets/images/Logo ITK.png',
               height: 32,
               width: 32,
               fit: BoxFit.contain,
@@ -138,9 +138,9 @@ class _QuestionnaireListPageState extends State<QuestionnaireListPage> {
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
-                    child: Center(
-                      child: Text(
-                        (widget.employee?['name']?.toString() ?? 'User')
+                      child: Center(
+                        child: Text(
+                        (AuthService.currentUser?.username ?? 'User')
                             .substring(0, 1)
                             .toUpperCase(),
                         style: const TextStyle(
@@ -153,7 +153,7 @@ class _QuestionnaireListPageState extends State<QuestionnaireListPage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    widget.employee?['name']?.toString() ?? 'Your Name',
+                    AuthService.currentUser?.username ?? 'Your Name',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -162,7 +162,7 @@ class _QuestionnaireListPageState extends State<QuestionnaireListPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    widget.employee?['email']?.toString() ?? '11221044',
+                    AuthService.currentUser?.nim ?? AuthService.currentUser?.email ?? '11221044',
                     style: TextStyle(
                       color: Colors.white.withOpacity(0.9),
                       fontSize: 14,

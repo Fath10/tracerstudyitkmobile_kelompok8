@@ -1,9 +1,24 @@
+import 'dart:io';
+
 class ApiConfig {
-  // Base URL - Change this to your backend server address
-  // For Android Emulator use: http://10.0.2.2:8000
-  // For iOS Simulator use: http://localhost:8000
-  // For physical device use: http://YOUR_IP_ADDRESS:8000
-  static const String baseUrl = 'http://192.168.0.103:8000';  // Physical device
+  // Base URL - Automatically configured based on platform
+  // Android Emulator: http://10.0.2.2:8000
+  // iOS Simulator: http://localhost:8000
+  // Physical device: Use your computer's IP address
+  static String get baseUrl {
+    if (Platform.isAndroid) {
+      // Android emulator uses 10.0.2.2 to access host machine's localhost
+      // return 'http://10.0.2.2:8000';
+      // For physical device, uncomment below and use your computer's IP:
+      return 'http://192.168.1.107:8000';
+    } else if (Platform.isIOS) {
+      // iOS simulator can use localhost
+      return 'http://localhost:8000';
+    } else {
+      // Default for desktop/web
+      return 'http://localhost:8000';
+    }
+  }
   
   // Authentication endpoints
   static const String login = '/accounts/login/';
@@ -59,9 +74,7 @@ class ApiConfig {
   
   // User role endpoints
   static const String users = '/api/users/';
-  static String userDetail(int id) => '/api/users/$id/';
   static const String roles = '/api/roles/';
-  static String roleDetail(int id) => '/api/roles/$id/';
   
   // Helper to build full URL
   static String getUrl(String endpoint) {
@@ -69,6 +82,6 @@ class ApiConfig {
   }
   
   // Timeout durations
-  static const Duration connectionTimeout = Duration(seconds: 30);
-  static const Duration receiveTimeout = Duration(seconds: 30);
+  static const Duration connectionTimeout = Duration(seconds: 60);
+  static const Duration receiveTimeout = Duration(seconds: 60);
 }
