@@ -33,22 +33,25 @@ class _AddSurveyPageState extends State<AddSurveyPage> {
           ),
           title: Row(
             children: [
-              Image.asset(
-                'assets/images/Logo ITK.png',
-                height: 32,
-                width: 32,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    height: 32,
-                    width: 32,
-                    decoration: BoxDecoration(
-                      color: Colors.blue[700],
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.school, color: Colors.white, size: 20),
-                  );
-                },
+              Padding(
+                padding: const EdgeInsets.all(4),
+                child: Image.asset(
+                  'assets/images/Logo ITK.png',
+                  height: 24,
+                  width: 24,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      height: 24,
+                      width: 24,
+                      decoration: BoxDecoration(
+                        color: Colors.blue[700],
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.school, color: Colors.white, size: 16),
+                    );
+                  },
+                ),
               ),
               const SizedBox(width: 10),
               Column(

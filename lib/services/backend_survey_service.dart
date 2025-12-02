@@ -10,17 +10,30 @@ class BackendSurveyService {
   Future<List<dynamic>> getAllSurveys() async {
     try {
       // Try with auth first, fallback to no-auth if 401
+      List<dynamic> surveys;
       try {
         final response = await _apiService.get(ApiConfig.surveys);
-        return response is List ? response : (response['results'] ?? []);
+        surveys = response is List ? response : (response['results'] ?? []);
       } catch (e) {
         // If auth fails, try without auth
         if (e.toString().contains('401')) {
           final response = await _apiService.get(ApiConfig.surveys, includeAuth: false);
-          return response is List ? response : (response['results'] ?? []);
+          surveys = response is List ? response : (response['results'] ?? []);
+        } else {
+          rethrow;
         }
-        rethrow;
       }
+      
+      // Transform backend format to frontend format
+      return surveys.map((survey) {
+        final s = Map<String, dynamic>.from(survey);
+        return <String, dynamic>{
+          ...s,
+          'name': s['title'] ?? s['name'], // Ensure 'name' field exists
+          'isLive': s['is_active'] ?? false,
+          'isTemplate': false, // Backend surveys are not templates
+        };
+      }).toList();
     } catch (e) {
       throw Exception('Failed to fetch surveys: $e');
     }
@@ -29,8 +42,37 @@ class BackendSurveyService {
   /// Get survey by ID
   Future<Map<String, dynamic>> getSurveyById(int id) async {
     try {
-      return await _apiService.get(ApiConfig.surveyDetail(id));
+      print('📋 Fetching survey $id with all sections and questions...');
+      
+      // Fetch base survey
+      final survey = await _apiService.get(ApiConfig.surveyDetail(id));
+      final surveyData = Map<String, dynamic>.from(survey);
+      
+      // Fetch all sections for this survey
+      final sections = await getSurveySections(id);
+      print('   Found ${sections.length} sections');
+      
+      // Fetch questions for each section
+      for (var i = 0; i < sections.length; i++) {
+        final section = sections[i];
+        final sectionId = section['id'];
+        
+        try {
+          final questions = await getSectionQuestions(id, sectionId);
+          section['questions'] = questions;
+          print('      Section ${i + 1}: ${questions.length} questions');
+        } catch (e) {
+          print('      ⚠️ Failed to load questions for section $sectionId: $e');
+          section['questions'] = [];
+        }
+      }
+      
+      surveyData['sections'] = sections;
+      print('✅ Loaded complete survey with ${sections.length} sections');
+      
+      return surveyData;
     } catch (e) {
+      print('❌ Failed to fetch survey: $e');
       throw Exception('Failed to fetch survey: $e');
     }
   }
@@ -38,8 +80,88 @@ class BackendSurveyService {
   /// Create new survey
   Future<Map<String, dynamic>> createSurvey(Map<String, dynamic> surveyData) async {
     try {
-      return await _apiService.post(ApiConfig.surveys, surveyData);
+      print('🔧 Creating survey: ${surveyData['name']}');
+      print('   Original survey data: $surveyData');
+      
+      // Transform frontend format to backend format
+      final backendData = {
+        'title': surveyData['name'] ?? surveyData['title'] ?? 'Untitled Survey',
+        'description': surveyData['description'] ?? '',
+        'is_active': surveyData['isLive'] ?? false,
+        'survey_type': surveyData['survey_type'] ?? 'exit',
+      };
+      
+      // Add optional fields if present
+      if (surveyData['periode_id'] != null) {
+        backendData['periode_id'] = surveyData['periode_id'];
+      }
+      if (surveyData['start_at'] != null) {
+        backendData['start_at'] = surveyData['start_at'];
+      }
+      if (surveyData['end_at'] != null) {
+        backendData['end_at'] = surveyData['end_at'];
+      }
+      
+      print('   Transformed backend data: $backendData');
+      
+      final response = await _apiService.post(ApiConfig.surveys, backendData, includeAuth: true);
+      final surveyResponse = Map<String, dynamic>.from(response);
+      print('✅ Survey created successfully with ID: ${surveyResponse['id']}');
+      
+      // If sections were provided, create them separately with their questions
+      if (surveyData['sections'] != null && surveyData['sections'] is List) {
+        final surveyId = surveyResponse['id'];
+        final sections = surveyData['sections'] as List;
+        print('   Creating ${sections.length} sections for survey $surveyId');
+        
+        for (var i = 0; i < sections.length; i++) {
+          final section = sections[i];
+          try {
+            final sectionResponse = await createSection(surveyId, {
+              'title': section['title'] ?? 'Section ${i + 1}',
+              'description': section['description'] ?? '',
+              'order': section['order'] ?? i,
+            });
+            final sectionId = sectionResponse['id'];
+            print('      ✓ Section ${i + 1} created with ID: $sectionId');
+            
+            // Create questions for this section if they exist
+            if (section['questions'] != null && section['questions'] is List) {
+              final questions = section['questions'] as List;
+              print('         Creating ${questions.length} questions for section $sectionId');
+              
+              for (var j = 0; j < questions.length; j++) {
+                final question = questions[j];
+                final questionData = {
+                  'text': question['text'] ?? question['label'] ?? 'Question ${j + 1}',
+                  'question_type': _mapQuestionType(question['type']),
+                  'options': question['options'] ?? '',
+                  'is_required': question['required'] ?? true,
+                  'order': j,
+                };
+                
+                print('            Question ${j + 1} data: $questionData');
+                
+                try {
+                  final createdQuestion = await createQuestion(surveyId, sectionId, questionData);
+                  print('            ✓ Question ${j + 1} created with ID: ${createdQuestion['id']}');
+                } catch (e) {
+                  print('            ✗ Failed to create question ${j + 1}: $e');
+                  print('            Question data was: $questionData');
+                }
+              }
+            } else {
+              print('         ⚠️ No questions found in section data');
+            }
+          } catch (e) {
+            print('      ✗ Failed to create section ${i + 1}: $e');
+          }
+        }
+      }
+      
+      return surveyResponse;
     } catch (e) {
+      print('❌ Error creating survey: $e');
       throw Exception('Failed to create survey: $e');
     }
   }
@@ -95,8 +217,12 @@ class BackendSurveyService {
   /// Create section for a survey
   Future<Map<String, dynamic>> createSection(int surveyId, Map<String, dynamic> sectionData) async {
     try {
-      return await _apiService.post(ApiConfig.surveySections(surveyId), sectionData);
+      print('📄 Creating section for survey $surveyId: ${sectionData['title']}');
+      final response = await _apiService.post(ApiConfig.surveySections(surveyId), sectionData, includeAuth: true);
+      print('✅ Section created with ID: ${response['id']}');
+      return response;
     } catch (e) {
+      print('❌ Failed to create section: $e');
       throw Exception('Failed to create section: $e');
     }
   }
@@ -176,11 +302,16 @@ class BackendSurveyService {
     Map<String, dynamic> questionData,
   ) async {
     try {
-      return await _apiService.post(
+      print('❓ Creating question in section $sectionId: ${questionData['text']}');
+      final response = await _apiService.post(
         ApiConfig.surveyQuestions(surveyId, sectionId),
         questionData,
+        includeAuth: true,
       );
+      print('✅ Question created with ID: ${response['id']}');
+      return response;
     } catch (e) {
+      print('❌ Failed to create question: $e');
       throw Exception('Failed to create question: $e');
     }
   }
@@ -315,11 +446,30 @@ class BackendSurveyService {
   /// Get all answers for a survey
   Future<List<dynamic>> getSurveyAnswers(int surveyId) async {
     try {
-      final response = await _apiService.get(ApiConfig.surveyAnswers(surveyId));
-      return response is List ? response : (response['results'] ?? []);
+      print('📥 Fetching answers for survey $surveyId');
+      final response = await _apiService.get(ApiConfig.surveyAnswers(surveyId), includeAuth: true);
+      final answers = response is List ? response : (response['results'] ?? []);
+      print('✅ Fetched ${answers.length} answers');
+      return answers;
     } catch (e) {
+      print('❌ Error fetching answers: $e');
       throw Exception('Failed to fetch answers: $e');
     }
+  }
+
+  /// Map frontend question types to backend question types
+  String _mapQuestionType(dynamic type) {
+    if (type == null) return 'text';
+    final typeStr = type.toString().toLowerCase();
+    
+    if (typeStr.contains('text') || typeStr.contains('input')) return 'text';
+    if (typeStr.contains('number')) return 'number';
+    if (typeStr.contains('radio') || typeStr.contains('single')) return 'radio';
+    if (typeStr.contains('checkbox') || typeStr.contains('multiple')) return 'checkbox';
+    if (typeStr.contains('dropdown') || typeStr.contains('select')) return 'dropdown';
+    if (typeStr.contains('scale') || typeStr.contains('rating')) return 'scale';
+    
+    return 'text'; // default
   }
 
   /// Get specific answer by ID
@@ -337,8 +487,14 @@ class BackendSurveyService {
     Map<String, dynamic> answerData,
   ) async {
     try {
-      return await _apiService.post(ApiConfig.surveyAnswers(surveyId), answerData);
+      print('📤 Submitting answer for survey $surveyId');
+      print('   Answer data: $answerData');
+      final response = await _apiService.post(ApiConfig.surveyAnswers(surveyId), answerData, includeAuth: true);
+      final answerResponse = Map<String, dynamic>.from(response);
+      print('✅ Answer submitted successfully: ${answerResponse['id']}');
+      return answerResponse;
     } catch (e) {
+      print('❌ Error submitting answer: $e');
       throw Exception('Failed to create answer: $e');
     }
   }

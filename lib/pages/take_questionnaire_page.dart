@@ -34,6 +34,10 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
   final Map<int, dynamic> _answers = {};
   bool _isSubmitting = false;
   int _currentSectionIndex = 0;
+  
+  // Store backend survey data with question IDs
+  Map<String, dynamic>? _backendSurvey;
+  bool _loadingBackendSurvey = false;
 
   // Get sections for this survey
   List<Map<String, dynamic>> get _surveySections {
@@ -84,6 +88,49 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
     // Autofill user information from logged in user
     _nameController.text = AuthService.currentUser?.username ?? '';
     _nimController.text = AuthService.currentUser?.nim ?? AuthService.currentUser?.id ?? '';
+    
+    // Load backend survey with questions if this is a backend survey
+    if (widget.survey['id'] != null) {
+      _loadBackendSurvey();
+    }
+  }
+  
+  Future<void> _loadBackendSurvey() async {
+    final surveyId = widget.survey['id'];
+    if (surveyId == null) return;
+    
+    setState(() {
+      _loadingBackendSurvey = true;
+    });
+    
+    try {
+      int id;
+      if (surveyId is int) {
+        id = surveyId;
+      } else if (surveyId is String) {
+        id = int.tryParse(surveyId) ?? 0;
+      } else {
+        return;
+      }
+      
+      final surveyService = BackendSurveyService();
+      final backendSurvey = await surveyService.getSurveyById(id);
+      
+      if (mounted) {
+        setState(() {
+          _backendSurvey = backendSurvey;
+          _loadingBackendSurvey = false;
+        });
+        print('✅ Loaded backend survey with ${backendSurvey['sections']?.length ?? 0} sections');
+      }
+    } catch (e) {
+      print('❌ Error loading backend survey: $e');
+      if (mounted) {
+        setState(() {
+          _loadingBackendSurvey = false;
+        });
+      }
+    }
   }
 
   @override
@@ -109,22 +156,25 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
           ),
           title: Row(
             children: [
-              Image.asset(
-                'assets/images/Logo ITK.png',
-                height: 32,
-                width: 32,
-                fit: BoxFit.contain,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    height: 32,
-                    width: 32,
-                    decoration: BoxDecoration(
-                      color: Colors.blue[700],
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.school, color: Colors.white, size: 20),
-                  );
-                },
+              Padding(
+                padding: const EdgeInsets.all(4),
+                child: Image.asset(
+                  'assets/images/Logo ITK.png',
+                  height: 24,
+                  width: 24,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      height: 24,
+                      width: 24,
+                      decoration: BoxDecoration(
+                        color: Colors.blue[700],
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.school, color: Colors.white, size: 16),
+                    );
+                  },
+                ),
               ),
               const SizedBox(width: 10),
               Column(
@@ -1060,14 +1110,78 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
           throw Exception('Invalid survey ID type: ${surveyIdRaw.runtimeType}');
         }
         
-        // Prepare answer data for backend
-        final answerData = {
-          'survey': surveyId,
-          'user': AuthService.currentUser?.id,
-          'answer_text': jsonEncode(serializableAnswers),
-        };
+        // Get all questions with their backend IDs
+        final backendQuestions = <Map<String, dynamic>>[];
+        if (_backendSurvey != null && _backendSurvey!['sections'] != null) {
+          for (var section in (_backendSurvey!['sections'] as List)) {
+            if (section['questions'] != null) {
+              backendQuestions.addAll(List<Map<String, dynamic>>.from(section['questions']));
+            }
+          }
+        }
         
-        await surveyService.createAnswer(surveyId, answerData);
+        print('📤 Submitting ${_answers.length} answers to backend');
+        print('   Backend survey loaded: ${_backendSurvey != null}');
+        print('   Found ${backendQuestions.length} backend questions');
+        
+        // If no backend questions exist, show error
+        if (backendQuestions.isEmpty) {
+          print('❌ ERROR: No questions found in backend for survey $surveyId!');
+          print('   This survey may not have questions created in the database.');
+          print('   Questions must be created when the survey is created for answers to be tracked.');
+          throw Exception('This survey has no questions in the database. Answers cannot be tracked. Please recreate the survey with questions.');
+        }
+        
+        // Submit individual answers mapped to actual Question IDs
+        int successCount = 0;
+        int failCount = 0;
+        
+        for (var entry in _answers.entries) {
+          final localQuestionIndex = entry.key;
+          final answerValue = entry.value;
+          
+          // Skip if no answer provided
+          if (answerValue == null || (answerValue is String && answerValue.isEmpty)) {
+            continue;
+          }
+          
+          // Find the backend question ID for this local question index
+          int? backendQuestionId;
+          if (localQuestionIndex < backendQuestions.length) {
+            backendQuestionId = backendQuestions[localQuestionIndex]['id'];
+          }
+          
+          if (backendQuestionId == null) {
+            print('   ⚠️ No backend question ID for local index $localQuestionIndex');
+            failCount++;
+            continue;
+          }
+          
+          // Convert answer value to string for backend
+          String answerStr;
+          if (answerValue is List) {
+            answerStr = jsonEncode(answerValue);
+          } else {
+            answerStr = answerValue.toString();
+          }
+          
+          try {
+            final answerData = {
+              'survey': surveyId,
+              'question': backendQuestionId,
+              'answer_value': answerStr,
+            };
+            
+            await surveyService.createAnswer(surveyId, answerData);
+            print('   ✓ Answer for question $backendQuestionId (local index $localQuestionIndex) submitted');
+            successCount++;
+          } catch (e) {
+            print('   ✗ Failed to submit answer for question $backendQuestionId: $e');
+            failCount++;
+          }
+        }
+        
+        print('✅ Answer submission complete: $successCount success, $failCount failed');
       }
       
       if (mounted) {

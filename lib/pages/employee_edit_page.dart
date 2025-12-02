@@ -1,22 +1,25 @@
 import 'package:flutter/material.dart';
 import '../services/backend_user_service.dart';
+import '../models/user_model.dart';
 
 class EmployeeEditPage extends StatefulWidget {
   final int? employeeId;
   final Map<String, dynamic>? employee;
-  
+
   const EmployeeEditPage({super.key, this.employeeId, this.employee});
 
   @override
   State<EmployeeEditPage> createState() => _EmployeeEditPageState();
 }
 
-class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerProviderStateMixin {
+class _EmployeeEditPageState extends State<EmployeeEditPage>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _backendUserService = BackendUserService();
   late TabController _tabController;
-  
+
   // Controllers
+  late TextEditingController _idController;
   late TextEditingController _nameController;
   late TextEditingController _emailController;
   late TextEditingController _passwordController;
@@ -24,11 +27,13 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
   late TextEditingController _nikKtpController;
   late TextEditingController _placeOfBirthController;
   late TextEditingController _birthdayController;
-  
+
   // Dropdown values
   String _selectedRole = 'surveyor'; // Default role
   String? _selectedProdi; // Only for team_prodi role
-  
+  List<ProgramStudyModel> _programStudies = [];
+  bool _loadingProgramStudies = false;
+
   String? createdAt;
   String? lastModified;
   bool isNewEmployee = true;
@@ -39,7 +44,10 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     isNewEmployee = widget.employee == null;
-    
+
+    _idController = TextEditingController(
+      text: widget.employee?['id']?.toString() ?? '',
+    );
     _nameController = TextEditingController(
       text: widget.employee?['name']?.toString() ?? '',
     );
@@ -61,14 +69,36 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
     _birthdayController = TextEditingController(
       text: widget.employee?['birthday']?.toString() ?? '',
     );
-    
-    // Load role and prodi
-    _selectedRole = widget.employee?['role']?.toString() ?? 'surveyor';
-    _selectedProdi = widget.employee?['prodi']?.toString();
-    
+
+    // Load role and prodi from backend data
+    if (widget.employee != null) {
+      // Extract role from the role object if it exists
+      if (widget.employee!['role'] is Map) {
+        final roleObj = widget.employee!['role'] as Map;
+        final roleName = roleObj['name']?.toString().toLowerCase() ?? 'surveyor';
+        _selectedRole = roleName;
+      } else if (widget.employee!['role_id'] != null) {
+        // Map role_id to role name
+        final roleId = widget.employee!['role_id'];
+        _selectedRole = roleId == 1 ? 'admin' : (roleId == 2 ? 'surveyor' : 'team_prodi');
+      } else {
+        _selectedRole = 'surveyor';
+      }
+      
+      // Extract program study
+      if (widget.employee!['program_study'] is Map) {
+        final prodiObj = widget.employee!['program_study'] as Map;
+        _selectedProdi = prodiObj['id']?.toString();
+      } else if (widget.employee!['program_study_id'] != null) {
+        _selectedProdi = widget.employee!['program_study_id']?.toString();
+      }
+    } else {
+      _selectedRole = 'surveyor';
+    }
+
     createdAt = widget.employee?['createdAt']?.toString();
     lastModified = widget.employee?['updatedAt']?.toString();
-    
+
     // Format timestamps if they exist
     if (createdAt != null) {
       createdAt = _formatTimestamp(createdAt!);
@@ -76,14 +106,40 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
     if (lastModified != null) {
       lastModified = _formatTimestamp(lastModified!);
     }
+
+    // Load program studies
+    _loadProgramStudies();
   }
-  
+
+  Future<void> _loadProgramStudies() async {
+    setState(() {
+      _loadingProgramStudies = true;
+    });
+
+    try {
+      final programStudies = await _backendUserService.getAllProgramStudies();
+      if (mounted) {
+        setState(() {
+          _programStudies = programStudies;
+          _loadingProgramStudies = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading program studies: $e');
+      if (mounted) {
+        setState(() {
+          _loadingProgramStudies = false;
+        });
+      }
+    }
+  }
+
   String _formatTimestamp(String timestamp) {
     try {
       final dateTime = DateTime.parse(timestamp);
       final now = DateTime.now();
       final difference = now.difference(dateTime);
-      
+
       if (difference.inDays > 365) {
         return '${(difference.inDays / 365).floor()} year${(difference.inDays / 365).floor() > 1 ? 's' : ''} ago';
       } else if (difference.inDays > 30) {
@@ -105,6 +161,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
   @override
   void dispose() {
     _tabController.dispose();
+    _idController.dispose();
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -115,39 +172,51 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
     super.dispose();
   }
 
-  // Helper method to map prodi name to ID
-  // TODO: Replace with dynamic fetching from backend
+  // Helper method to map prodi name to ID using dynamic data
   int? _getProdiId(String prodiName) {
-    final prodiMap = {
-      'Informatics': 1,
-      'Mathematics': 2,
-      'Chemistry': 3,
-    };
-    return prodiMap[prodiName];
+    try {
+      return _programStudies.firstWhere((p) => p.name == prodiName).id;
+    } catch (e) {
+      print('Program study not found: $prodiName');
+      return null;
+    }
   }
 
   void _handleSave() async {
     if (_formKey.currentState!.validate()) {
       try {
         final employeeData = <String, dynamic>{
-          'username': _nameController.text,
-          'email': _emailController.text,
-          'phone_number': _phoneController.text.isEmpty ? null : _phoneController.text,
-          'nik_ktp': _nikKtpController.text.isEmpty ? null : _nikKtpController.text,
-          'place_of_birth': _placeOfBirthController.text.isEmpty ? null : _placeOfBirthController.text,
-          'birthday': _birthdayController.text.isEmpty ? null : _birthdayController.text,
-          'role_id': _selectedRole == 'admin' ? 1 : (_selectedRole == 'surveyor' ? 2 : 3),
-          'program_study_id': _selectedRole == 'team_prodi' && _selectedProdi != null ? _getProdiId(_selectedProdi!) : null,
+          'username': _nameController.text.trim(),
+          'email': _emailController.text.trim().isEmpty
+              ? null
+              : _emailController.text.trim(),
+          'phone_number': _phoneController.text.trim().isEmpty
+              ? null
+              : _phoneController.text.trim(),
+          'role_id': _selectedRole == 'admin'
+              ? 1
+              : (_selectedRole == 'surveyor' ? 2 : 3),
+          'program_study_id':
+              _selectedRole == 'team_prodi' && _selectedProdi != null
+              ? _getProdiId(_selectedProdi!)
+              : null,
         };
-        
+
         if (isNewEmployee) {
-          // Creating new employee - need to provide id and password
-          employeeData['id'] = _emailController.text.split('@')[0]; // Use email prefix as ID
-          employeeData['password'] = _passwordController.text.isNotEmpty ? _passwordController.text : 'password123';
+          // Creating new employee - MUST provide id field
+          employeeData['id'] = _idController.text.trim();
+
+          // Only send password if user provided one
+          if (_passwordController.text.trim().isNotEmpty) {
+            employeeData['password'] = _passwordController.text.trim();
+          }
           await _backendUserService.createUser(employeeData);
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Employee created successfully'), backgroundColor: Colors.green),
+            const SnackBar(
+              content: Text('Employee created successfully'),
+              backgroundColor: Colors.green,
+            ),
           );
         } else {
           // Updating existing employee
@@ -158,16 +227,26 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
           await _backendUserService.updateUser(userId, employeeData);
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Employee updated successfully'), backgroundColor: Colors.green),
+            const SnackBar(
+              content: Text('Employee updated successfully'),
+              backgroundColor: Colors.green,
+            ),
           );
         }
-        
+
         if (!mounted) return;
         Navigator.pop(context, true);
       } catch (e) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
+        print('❌ Employee save error: $e');
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     }
@@ -178,7 +257,9 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Employee'),
-        content: const Text('Are you sure you want to delete this employee? This action cannot be undone.'),
+        content: const Text(
+          'Are you sure you want to delete this employee? This action cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -192,14 +273,20 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
                 if (!mounted) return;
                 Navigator.pop(context); // Close dialog
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Employee deleted successfully'), backgroundColor: Colors.green),
+                  const SnackBar(
+                    content: Text('Employee deleted successfully'),
+                    backgroundColor: Colors.green,
+                  ),
                 );
                 Navigator.pop(context, true); // Close edit page
               } catch (e) {
                 if (!mounted) return;
                 Navigator.pop(context); // Close dialog
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error deleting employee: ${e.toString()}'), backgroundColor: Colors.red),
+                  SnackBar(
+                    content: Text('Error deleting employee: ${e.toString()}'),
+                    backgroundColor: Colors.red,
+                  ),
                 );
               }
             },
@@ -220,7 +307,8 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
     );
     if (picked != null) {
       setState(() {
-        _birthdayController.text = '${picked.day}/${picked.month}/${picked.year}';
+        _birthdayController.text =
+            '${picked.day}/${picked.month}/${picked.year}';
       });
     }
   }
@@ -241,22 +329,29 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
         ),
         title: Row(
           children: [
-            Image.asset(
-              'assets/images/Logo ITK.png',
-              height: 32,
-              width: 32,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  height: 32,
-                  width: 32,
-                  decoration: BoxDecoration(
-                    color: Colors.blue[700],
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.school, color: Colors.white, size: 20),
-                );
-              },
+            Padding(
+              padding: const EdgeInsets.all(4),
+              child: Image.asset(
+                'assets/images/Logo ITK.png',
+                height: 24,
+                width: 24,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 24,
+                    width: 24,
+                    decoration: BoxDecoration(
+                      color: Colors.blue[700],
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.school,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  );
+                },
+              ),
             ),
             const SizedBox(width: 10),
             Column(
@@ -273,10 +368,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
                 ),
                 Text(
                   'Sistem Tracking Lulusan',
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 10,
-                  ),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 10),
                 ),
               ],
             ),
@@ -323,10 +415,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
               key: _formKey,
               child: TabBarView(
                 controller: _tabController,
-                children: [
-                  _buildPersonalTab(),
-                  _buildModulePermissionsTab(),
-                ],
+                children: [_buildPersonalTab(), _buildModulePermissionsTab()],
               ),
             ),
           ),
@@ -358,10 +447,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
             ),
             child: const Text(
               'Save Employee',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
           ),
         ),
@@ -375,6 +461,25 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ID field (required for creation)
+          _buildTextField(
+            label: 'Employee ID (NIM/NIP)',
+            controller: _idController,
+            isRequired: true,
+            enabled: isNewEmployee, // Only editable when creating
+            hint: isNewEmployee ? 'Enter unique employee ID' : null,
+            helperText: isNewEmployee
+                ? 'Used as login username'
+                : 'Cannot be changed',
+            validator: (value) {
+              if (isNewEmployee && (value == null || value.trim().isEmpty)) {
+                return 'Employee ID is required';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+
           // Name field
           _buildTextField(
             label: 'Name',
@@ -388,25 +493,22 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
             },
           ),
           const SizedBox(height: 16),
-          
+
           // Email field
           _buildTextField(
             label: 'Email',
             controller: _emailController,
-            isRequired: true,
+            isRequired: false,
             keyboardType: TextInputType.emailAddress,
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Please enter email';
-              }
-              if (!value.contains('@')) {
+              if (value != null && value.isNotEmpty && !value.contains('@')) {
                 return 'Please enter a valid email';
               }
               return null;
             },
           ),
           const SizedBox(height: 16),
-          
+
           // Password field
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -435,7 +537,9 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: Colors.grey[50],
-                  hintText: isNewEmployee ? 'Enter password' : 'Leave empty to keep current password',
+                  hintText: isNewEmployee
+                      ? 'Enter password'
+                      : 'Leave empty to keep current password',
                   hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -484,7 +588,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
             ],
           ),
           const SizedBox(height: 16),
-          
+
           // Phone field
           _buildTextField(
             label: 'Phone',
@@ -492,7 +596,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
             keyboardType: TextInputType.phone,
           ),
           const SizedBox(height: 16),
-          
+
           // NIK KTP field
           _buildTextField(
             label: 'NIK KTP',
@@ -500,14 +604,14 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
             keyboardType: TextInputType.number,
           ),
           const SizedBox(height: 16),
-          
+
           // Place of Birth field
           _buildTextField(
             label: 'Place of Birth',
             controller: _placeOfBirthController,
           ),
           const SizedBox(height: 16),
-          
+
           // Birthday field
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -585,13 +689,10 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
           const SizedBox(height: 8),
           Text(
             'Select the access level for this employee',
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
           ),
           const SizedBox(height: 16),
-          
+
           // Role dropdown
           _buildDropdownField(
             label: 'Role',
@@ -609,17 +710,17 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
             },
           ),
           const SizedBox(height: 16),
-          
+
           // Role descriptions
           _buildRoleInfo(_selectedRole),
           const SizedBox(height: 24),
-          
+
           // Prodi dropdown (only visible for team_prodi role)
           if (_selectedRole == 'team_prodi') ...[
             _buildDropdownField(
               label: 'Prodi',
               value: _selectedProdi,
-              items: const ['Informatics', 'Mathematics', 'Chemistry'],
+              items: _programStudies.map((p) => p.name).toList(),
               isRequired: true,
               onChanged: (value) {
                 setState(() {
@@ -643,10 +744,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
                   Expanded(
                     child: Text(
                       'This employee will only be able to edit surveys tagged with the selected prodi',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.blue[900],
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.blue[900]),
                     ),
                   ),
                 ],
@@ -657,14 +755,14 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
       ),
     );
   }
-  
+
   Widget _buildRoleInfo(String role) {
     String title;
     String description;
     List<String> permissions;
     MaterialColor colorSwatch;
     IconData icon;
-    
+
     switch (role) {
       case 'admin':
         title = 'Administrator';
@@ -708,7 +806,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
         colorSwatch = Colors.grey;
         icon = Icons.help;
     }
-    
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -744,10 +842,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
                     ),
                     Text(
                       description,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                      ),
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                     ),
                   ],
                 ),
@@ -764,25 +859,33 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
             ),
           ),
           const SizedBox(height: 8),
-          ...permissions.map((permission) => Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.check_circle, color: colorSwatch[700], size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    permission,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[700],
-                    ),
+          ...permissions
+              .map(
+                (permission) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        color: colorSwatch[700],
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          permission,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          )).toList(),
+              )
+              .toList(),
         ],
       ),
     );
@@ -792,6 +895,9 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
     required String label,
     required TextEditingController controller,
     bool isRequired = false,
+    bool enabled = true,
+    String? hint,
+    String? helperText,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
   }) {
@@ -818,15 +924,22 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
         const SizedBox(height: 8),
         TextFormField(
           controller: controller,
+          enabled: enabled,
           keyboardType: keyboardType,
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.grey[50],
+            fillColor: enabled ? Colors.grey[50] : Colors.grey[200],
+            hintText: hint,
+            helperText: helperText,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: Colors.grey[300]!),
             ),
             enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Colors.grey[300]!),
+            ),
+            disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: Colors.grey[300]!),
             ),
@@ -906,10 +1019,7 @@ class _EmployeeEditPageState extends State<EmployeeEditPage> with SingleTickerPr
             ),
           ),
           items: items.map((String item) {
-            return DropdownMenuItem<String>(
-              value: item,
-              child: Text(item),
-            );
+            return DropdownMenuItem<String>(value: item, child: Text(item));
           }).toList(),
           onChanged: onChanged,
           validator: isRequired

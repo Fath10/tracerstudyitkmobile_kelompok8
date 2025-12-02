@@ -27,8 +27,9 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
   int currentPage = 1;
   int itemsPerPage = 10;
   String searchQuery = '';
-  Set<String> selectedEmployees = {}; // Track selected employee IDs for checkboxes
-  String? selectedDepartmentFilter; // Filter by department
+  Set<String> selectedEmployees =
+      {}; // Track selected employee IDs for checkboxes
+  String? selectedAccessFilter; // Filter by access type
   bool showFilters = false; // Toggle filter visibility
 
   @override
@@ -39,24 +40,28 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
 
   Future<void> _loadEmployees() async {
     if (!mounted) return;
-    
+
     print('📱 EmployeeDirectory: Starting data load...');
-    setState(() { isLoading = true; });
-    
+    setState(() {
+      isLoading = true;
+    });
+
     try {
-      // Load users from backend
-      final usersData = await _backendUserService.getAllUsers();
-      print('📱 EmployeeDirectory: Got ${usersData.length} users from backend');
-      
+      // Load employees (admin/surveyor/team_prodi) from backend
+      final usersData = await _backendUserService.getAllUsers(employeesOnly: true);
+      print('📱 EmployeeDirectory: Got ${usersData.length} employees from backend');
+
       if (!mounted) return;
-      
+
       setState(() {
         employees = usersData;
         isLoading = false;
       });
-      
-      print('📱 EmployeeDirectory: State updated - isLoading=$isLoading, employees=${employees.length}');
-      
+
+      print(
+        '📱 EmployeeDirectory: State updated - isLoading=$isLoading, employees=${employees.length}',
+      );
+
       if (usersData.isEmpty) {
         print('📱 EmployeeDirectory: No data available');
         if (mounted) {
@@ -77,11 +82,11 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     } catch (e) {
       print('❌ EmployeeDirectory: Error loading data: $e');
       if (!mounted) return;
-      
+
       setState(() {
         isLoading = false;
       });
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error loading employees: $e'),
@@ -121,7 +126,10 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
         await _backendUserService.deleteUser(employee.id);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Employee deleted successfully'), backgroundColor: Colors.green),
+            const SnackBar(
+              content: Text('Employee deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
           );
         }
         _loadEmployees();
@@ -131,7 +139,10 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       }
@@ -140,12 +151,14 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
 
   Future<void> _deleteSelectedEmployees() async {
     if (selectedEmployees.isEmpty) return;
-    
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Employees'),
-        content: Text('Are you sure you want to delete ${selectedEmployees.length} selected employee(s)?'),
+        content: Text(
+          'Are you sure you want to delete ${selectedEmployees.length} selected employee(s)?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -159,32 +172,37 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
         ],
       ),
     );
-    
+
     if (confirm != true || !mounted) return;
-    
+
     try {
       for (final id in selectedEmployees) {
         await _backendUserService.deleteUser(id);
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${selectedEmployees.length} employee(s) deleted successfully'),
+            content: Text(
+              '${selectedEmployees.length} employee(s) deleted successfully',
+            ),
             backgroundColor: Colors.green,
           ),
         );
       }
-      
+
       setState(() {
         selectedEmployees.clear();
       });
-      
+
       _loadEmployees();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -192,12 +210,8 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
 
   List<UserModel> get filteredEmployees {
     var filtered = employees;
-    
-    // Filter to show only employees (admin, surveyor, team_prodi) - exclude regular users/alumni
-    filtered = filtered.where((user) {
-      final role = user.role?.name.toLowerCase() ?? '';
-      return role == 'admin' || role == 'surveyor' || role == 'team_prodi';
-    }).toList();
+
+    // Backend already filters for employees (admin/surveyor/team_prodi), no need to filter again
     
     // Apply search filter
     if (searchQuery.isNotEmpty) {
@@ -208,14 +222,27 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
         return name.contains(query) || email.contains(query);
       }).toList();
     }
-    
-    // Apply department filter
-    if (selectedDepartmentFilter != null && selectedDepartmentFilter != 'All') {
-      filtered = filtered.where((employee) => 
-        employee.programStudy?.name == selectedDepartmentFilter
-      ).toList();
+
+    // Apply role filter
+    if (selectedAccessFilter != null && selectedAccessFilter != 'All') {
+      filtered = filtered.where((employee) {
+        final role = employee.role?.name ?? '';
+        final filterRole = selectedAccessFilter!;
+        
+        // Match filter to role (case-insensitive contains check)
+        if (filterRole.toLowerCase().contains('admin')) {
+          return role.toLowerCase().contains('admin');
+        } else if (filterRole.toLowerCase().contains('surveyor') || filterRole.toLowerCase().contains('tracer')) {
+          return role.toLowerCase().contains('surveyor') || role.toLowerCase().contains('tracer');
+        } else if (filterRole.toLowerCase().contains('prodi')) {
+          return role.toLowerCase().contains('prodi');
+        }
+        
+        // Exact match fallback
+        return role.toLowerCase() == filterRole.toLowerCase();
+      }).toList();
     }
-    
+
     return filtered;
   }
 
@@ -233,18 +260,20 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
   }
 
   Future<void> _navigateToEmployeeEdit({UserModel? employee}) async {
+    print('📱 EmployeeDirectory: Navigating to employee edit...');
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => EmployeeEditPage(
-          employee: employee?.toJson(),
-        ),
+        builder: (context) => EmployeeEditPage(employee: employee?.toJson()),
       ),
     );
 
+    print('📱 EmployeeDirectory: Returned from edit with result: $result');
+    
     // Reload if changes were made
     if (result == true) {
-      _loadEmployees();
+      print('📱 EmployeeDirectory: Reloading employees...');
+      await _loadEmployees();
     }
   }
 
@@ -266,670 +295,748 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () {
-            Navigator.pop(context);
-          },
-        ),
-        title: Row(
-          children: [
-            Image.asset(
-              'assets/images/Logo ITK.png',
-              height: 28,
-              width: 28,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  height: 28,
-                  width: 28,
-                  decoration: BoxDecoration(
-                    color: Colors.blue[700],
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.school,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                );
-              },
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Tracer Study',
-                    style: TextStyle(
-                      color: Colors.black87,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    'Sistem Tracking Lulusan',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 9),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          if (selectedEmployees.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red, size: 22),
-              tooltip: 'Delete selected employees (${selectedEmployees.length})',
-              onPressed: _deleteSelectedEmployees,
-            ),
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.black87, size: 22),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.menu, color: Colors.black87, size: 22),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black87),
             onPressed: () {
-              _scaffoldKey.currentState?.openEndDrawer();
+              Navigator.pop(context);
             },
           ),
-        ],
-      ),
-      endDrawer: Drawer(
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Colors.blue[400]!, Colors.blue[600]!],
-            ),
-          ),
-          child: Column(
+          title: Row(
             children: [
-              // Close button
-              Padding(
-                padding: const EdgeInsets.only(left: 16, top: 40, right: 16),
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white),
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                  ),
-                ),
+              Image.asset(
+                'assets/images/Logo ITK.png',
+                height: 18,
+                width: 18,
+                fit: BoxFit.scaleDown,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    height: 18,
+                    width: 18,
+                    decoration: BoxDecoration(
+                      color: Colors.blue[700],
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.school,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  );
+                },
               ),
-
-              // User profile section
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 20,
-                ),
+              const SizedBox(width: 8),
+              Flexible(
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Avatar
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.3),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                      ),
-                      child: Center(
-                        child: Text(
-                          (AuthService.currentUser?.username ?? 'U')
-                              .substring(0, 1)
-                              .toUpperCase(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // User name
-                    Text(
-                      AuthService.currentUser?.username ??
-                          'Your Name',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-
-                    // User ID/Email
-                    Text(
-                      AuthService.currentUser?.nim ?? AuthService.currentUser?.email ??
-                          '11221044',
+                    const Text(
+                      'Tracer Study',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: 14,
+                        color: Colors.black87,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
-                    // Role debug info
                     Text(
-                      'Role: ${AuthService.userRole} | Type: ${AuthService.accountType}',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
-                        fontSize: 11,
-                      ),
+                      'Sistem Tracking Lulusan',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 9),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-
-              const SizedBox(height: 20),
-
-              // Menu items
-              Expanded(
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(30),
-                      topRight: Radius.circular(30),
+            ],
+          ),
+          actions: [
+            if (selectedEmployees.isNotEmpty)
+              IconButton(
+                icon: const Icon(
+                  Icons.delete_outline,
+                  color: Colors.red,
+                  size: 22,
+                ),
+                tooltip:
+                    'Delete selected employees (${selectedEmployees.length})',
+                onPressed: _deleteSelectedEmployees,
+              ),
+            IconButton(
+              icon: const Icon(
+                Icons.notifications_outlined,
+                color: Colors.black87,
+                size: 22,
+              ),
+              onPressed: () {},
+            ),
+            IconButton(
+              icon: const Icon(Icons.menu, color: Colors.black87, size: 22),
+              onPressed: () {
+                _scaffoldKey.currentState?.openEndDrawer();
+              },
+            ),
+          ],
+        ),
+        endDrawer: Drawer(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.blue[400]!, Colors.blue[600]!],
+              ),
+            ),
+            child: Column(
+              children: [
+                // Close button
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, top: 40, right: 16),
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white),
+                      onPressed: () {
+                        Navigator.pop(context);
+                      },
                     ),
                   ),
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(vertical: 20),
+                ),
+
+                // User profile section
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 20,
+                  ),
+                  child: Column(
                     children: [
-                      // Dashboard for employees (admin, surveyor, team_prodi)
-                      if (AuthService.isAdmin ||
-                          AuthService.isSurveyor ||
-                          AuthService.isTeamProdi)
+                      // Avatar
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.3),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: Center(
+                          child: Text(
+                            (AuthService.currentUser?.username ?? 'U')
+                                .substring(0, 1)
+                                .toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // User name
+                      Text(
+                        AuthService.currentUser?.username ?? 'Your Name',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+
+                      // User ID/Email
+                      Text(
+                        AuthService.currentUser?.nim ??
+                            AuthService.currentUser?.email ??
+                            '11221044',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      // Role debug info
+                      Text(
+                        'Role: ${AuthService.userRole} | Type: ${AuthService.accountType}',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.7),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Menu items
+                Expanded(
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(30),
+                        topRight: Radius.circular(30),
+                      ),
+                    ),
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      children: [
+                        // Dashboard for employees (admin, surveyor, team_prodi)
+                        if (AuthService.isAdmin ||
+                            AuthService.isSurveyor ||
+                            AuthService.isTeamProdi)
+                          _buildDrawerItem(
+                            icon: Icons.dashboard,
+                            title: 'Dashboard',
+                            onTap: () {
+                              Navigator.pop(context);
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const HomePage(),
+                                ),
+                              );
+                            },
+                          ),
+
+                        // Only show Unit Directory for admins
+                        if (AuthService.isAdmin)
+                          _buildExpandableSection(
+                            icon: Icons.business_center_outlined,
+                            title: 'Unit Directory',
+                            children: [
+                              _buildSubMenuItem(
+                                icon: Icons.folder_outlined,
+                                title: 'User Management',
+                                onTap: () {
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const UserManagementPage(),
+                                    ),
+                                    (route) => false,
+                                  );
+                                },
+                              ),
+                              _buildSubMenuItem(
+                                icon: Icons.business_outlined,
+                                title: 'Employee Directory',
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  // Already on this page, no navigation needed
+                                },
+                              ),
+                            ],
+                          ),
+                        // Show Questionnaire section for employees (admin, surveyor, team_prodi)
+                        if (AuthService.isAdmin ||
+                            AuthService.isSurveyor ||
+                            AuthService.isTeamProdi)
+                          _buildExpandableSection(
+                            icon: Icons.quiz_outlined,
+                            title: 'Questionnaire',
+                            children: [
+                              _buildSubMenuItem(
+                                icon: Icons.dashboard_outlined,
+                                title: 'Survey Management',
+                                onTap: () {
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const SurveyManagementPage(),
+                                    ),
+                                    (route) => false,
+                                  );
+                                },
+                              ),
+                              _buildSubMenuItem(
+                                icon: Icons.assignment_outlined,
+                                title: 'Take Questionnaire',
+                                onTap: () {
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const QuestionnaireListPage(),
+                                    ),
+                                    (route) => false,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+
+                        // Users (alumni) - show Take Questionnaire option
+                        if (AuthService.isUser)
+                          _buildDrawerItem(
+                            icon: Icons.assignment_outlined,
+                            title: 'Take Questionnaire',
+                            onTap: () {
+                              Navigator.pushAndRemoveUntil(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      const QuestionnaireListPage(),
+                                ),
+                                (route) => false,
+                              );
+                            },
+                          ),
+
+                        const Divider(height: 32),
+
+                        // Profile
                         _buildDrawerItem(
-                          icon: Icons.dashboard,
-                          title: 'Dashboard',
+                          icon: Icons.person,
+                          title: 'My Profile',
                           onTap: () {
                             Navigator.pop(context);
-                            Navigator.pushReplacement(
+                            Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const HomePage(),
+                                builder: (context) => const UserProfilePage(),
                               ),
                             );
                           },
                         ),
 
-                      // Only show Unit Directory for admins
-                      if (AuthService.isAdmin)
-                        _buildExpandableSection(
-                          icon: Icons.business_center_outlined,
-                          title: 'Unit Directory',
-                          children: [
-                            _buildSubMenuItem(
-                              icon: Icons.folder_outlined,
-                              title: 'User Management',
-                              onTap: () {
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const UserManagementPage(),
-                                  ),
-                                  (route) => false,
-                                );
-                              },
-                            ),
-                            _buildSubMenuItem(
-                              icon: Icons.business_outlined,
-                              title: 'Employee Directory',
-                              onTap: () {
-                                Navigator.pop(context);
-                                // Already on this page, no navigation needed
-                              },
-                            ),
-                          ],
-                        ),
-                      // Show Questionnaire section for employees (admin, surveyor, team_prodi)
-                      if (AuthService.isAdmin ||
-                          AuthService.isSurveyor ||
-                          AuthService.isTeamProdi)
-                        _buildExpandableSection(
-                          icon: Icons.quiz_outlined,
-                          title: 'Questionnaire',
-                          children: [
-                            _buildSubMenuItem(
-                              icon: Icons.dashboard_outlined,
-                              title: 'Survey Management',
-                              onTap: () {
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const SurveyManagementPage(),
-                                  ),
-                                  (route) => false,
-                                );
-                              },
-                            ),
-                            _buildSubMenuItem(
-                              icon: Icons.assignment_outlined,
-                              title: 'Take Questionnaire',
-                              onTap: () {
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const QuestionnaireListPage(),
-                                  ),
-                                  (route) => false,
-                                );
-                              },
-                            ),
-                          ],
-                        ),
+                        const SizedBox(height: 8),
 
-                      // Users (alumni) - show Take Questionnaire option
-                      if (AuthService.isUser)
+                        // Logout
                         _buildDrawerItem(
-                          icon: Icons.assignment_outlined,
-                          title: 'Take Questionnaire',
+                          icon: Icons.logout,
+                          title: 'Logout',
                           onTap: () {
                             Navigator.pushAndRemoveUntil(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const QuestionnaireListPage(),
+                                builder: (context) => const LoginPage(),
                               ),
                               (route) => false,
                             );
                           },
                         ),
-
-                      const Divider(height: 32),
-                      
-                      // Profile
-                      _buildDrawerItem(
-                        icon: Icons.person,
-                        title: 'My Profile',
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const UserProfilePage(),
-                            ),
-                          );
-                        },
-                      ),
-                      
-                      const SizedBox(height: 8),
-                      
-                      // Logout
-                      _buildDrawerItem(
-                        icon: Icons.logout,
-                        title: 'Logout',
-                        onTap: () {
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const LoginPage(),
-                            ),
-                            (route) => false,
-                          );
-                        },
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        body: RefreshIndicator(
+          onRefresh: _loadEmployees,
+          child: SafeArea(
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border(
+                      bottom: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Flexible(
+                        child: Text(
+                          'Employee Directory',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadEmployees,
-        child: SafeArea(
-          child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Flexible(
-                    child: Text(
-                      'Employee Directory',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                if (showFilters)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade50,
+                      border: Border(
+                        bottom: BorderSide(color: Colors.grey.shade300),
                       ),
-                      overflow: TextOverflow.ellipsis,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'Role: ',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: DropdownButton<String>(
+                                value: selectedAccessFilter,
+                                isExpanded: true,
+                                hint: const Text(
+                                  'All',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                                items: [
+                                  const DropdownMenuItem(
+                                    value: null,
+                                    child: Text(
+                                      'All',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                  const DropdownMenuItem(
+                                    value: 'Admin',
+                                    child: Text(
+                                      'Admin',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                  const DropdownMenuItem(
+                                    value: 'Surveyor',
+                                    child: Text(
+                                      'Surveyor',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                  const DropdownMenuItem(
+                                    value: 'Team_prodi',
+                                    child: Text(
+                                      'Team Prodi',
+                                      style: TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                ],
+                                onChanged: (value) {
+                                  setState(() {
+                                    selectedAccessFilter = value;
+                                    currentPage = 1;
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              tooltip: 'Clear filters',
+                              onPressed: () {
+                                setState(() {
+                                  selectedAccessFilter = null;
+                                  currentPage = 1;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            if (showFilters)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Text('Department: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: DropdownButton<String>(
-                            value: selectedDepartmentFilter,
-                            isExpanded: true,
-                            hint: const Text('All', style: TextStyle(fontSize: 12)),
-                            items: ['All', ...employees.map((e) => e.programStudy?.name ?? '').where((s) => s.isNotEmpty).toSet().toList()]
-                                .map((dept) => DropdownMenuItem(value: dept == 'All' ? null : dept, child: Text(dept, style: const TextStyle(fontSize: 12))))
-                                .toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                selectedDepartmentFilter = value;
-                                currentPage = 1;
-                              });
-                            },
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    border: Border(
+                      bottom: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          decoration: InputDecoration(
+                            hintText: 'Search',
+                            hintStyle: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.search,
+                              size: 18,
+                              color: Colors.grey.shade600,
+                            ),
+                            suffixIcon: Icon(
+                              Icons.mic,
+                              size: 18,
+                              color: Colors.grey.shade600,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(4),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade300,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(4),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade300,
+                              ),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            isDense: true,
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          tooltip: 'Clear filters',
-                          onPressed: () {
+                          style: const TextStyle(fontSize: 12),
+                          onChanged: (value) {
                             setState(() {
-                              selectedDepartmentFilter = null;
+                              searchQuery = value;
                               currentPage = 1;
                             });
                           },
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade50,
-                border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Search',
-                        hintStyle: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                        ),
-                        prefixIcon: Icon(
-                          Icons.search,
-                          size: 18,
-                          color: Colors.grey.shade600,
-                        ),
-                        suffixIcon: Icon(
-                          Icons.mic,
-                          size: 18,
-                          color: Colors.grey.shade600,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(4),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        isDense: true,
                       ),
-                      style: const TextStyle(fontSize: 12),
-                      onChanged: (value) {
-                        setState(() {
-                          searchQuery = value;
-                          currentPage = 1;
-                        });
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  // Add Employee Button (+ Icon)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0066CC),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: IconButton(
-                      onPressed: () => _navigateToEmployeeEdit(),
-                      icon: const Icon(
-                        Icons.add,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      tooltip: 'Add Employee',
-                      padding: const EdgeInsets.all(8),
-                      constraints: const BoxConstraints(
-                        minWidth: 36,
-                        minHeight: 36,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    icon: Icon(
-                      Icons.filter_list,
-                      color: showFilters ? Colors.blue : Colors.grey.shade700,
-                      size: 20,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        showFilters = !showFilters;
-                      });
-                    },
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      Icons.view_column_outlined,
-                      color: Colors.grey.shade700,
-                      size: 20,
-                    ),
-                    onPressed: () {},
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Container(
-                        margin: const EdgeInsets.all(8),
+                      const SizedBox(width: 4),
+                      // Add Employee Button (+ Icon)
+                      Container(
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
+                          color: const Color(0xFF0066CC),
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: Column(
-                          children: [
-                            // Table Header
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade100,
-                                border: Border(
-                                  bottom: BorderSide(
-                                    color: Colors.grey.shade300,
-                                  ),
-                                ),
-                              ),
-                              child: Table(
-                                columnWidths: const {
-                                  0: FixedColumnWidth(35),
-                                  1: FlexColumnWidth(2.2),
-                                  2: FlexColumnWidth(1.5),
-                                  3: FlexColumnWidth(1.2),
-                                  4: FixedColumnWidth(80),
-                                },
-                                children: [
-                                  TableRow(
-                                    children: [
-                                      _buildHeaderCell('', isCheckbox: true),
-                                      _buildHeaderCell('Name'),
-                                      _buildHeaderCell('Email'),
-                                      _buildHeaderCell('Access'),
-                                      _buildHeaderCell('Actions'),
-                                    ],
-                                  ),
-                                ],
-                              ),
+                        child: IconButton(
+                          onPressed: () => _navigateToEmployeeEdit(),
+                          icon: const Icon(
+                            Icons.add,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          tooltip: 'Add Employee',
+                          padding: const EdgeInsets.all(8),
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: Icon(
+                          Icons.filter_list,
+                          color: showFilters
+                              ? Colors.blue
+                              : Colors.grey.shade700,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            showFilters = !showFilters;
+                          });
+                        },
+                        padding: const EdgeInsets.all(8),
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          Icons.view_column_outlined,
+                          color: Colors.grey.shade700,
+                          size: 20,
+                        ),
+                        onPressed: () {},
+                        padding: const EdgeInsets.all(8),
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : SingleChildScrollView(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Container(
+                            margin: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(4),
                             ),
-                            // Table Rows
-                            if (paginatedEmployees.isEmpty)
-                              Container(
-                                padding: const EdgeInsets.all(40),
-                                child: const Center(
-                                  child: Text(
-                                    'No employees found',
-                                    style: TextStyle(
-                                      color: Colors.grey,
-                                      fontSize: 14,
+                            child: Column(
+                              children: [
+                                // Table Header
+                                Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade100,
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: Colors.grey.shade300,
+                                      ),
                                     ),
                                   ),
+                                  child: Table(
+                                    columnWidths: const {
+                                      0: FixedColumnWidth(35),
+                                      1: FlexColumnWidth(2.2),
+                                      2: FlexColumnWidth(1.5),
+                                      3: FlexColumnWidth(1.2),
+                                      4: FixedColumnWidth(80),
+                                    },
+                                    children: [
+                                      TableRow(
+                                        children: [
+                                          _buildHeaderCell(
+                                            '',
+                                            isCheckbox: true,
+                                          ),
+                                          _buildHeaderCell('Name'),
+                                          _buildHeaderCell('Email'),
+                                          _buildHeaderCell('Access'),
+                                          _buildHeaderCell('Actions'),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                              )
-                            else
-                              ...paginatedEmployees.map(
-                                (employee) => _buildEmployeeRow(employee),
+                                // Table Rows
+                                if (paginatedEmployees.isEmpty)
+                                  Container(
+                                    padding: const EdgeInsets.all(40),
+                                    child: const Center(
+                                      child: Text(
+                                        'No employees found',
+                                        style: TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  ...paginatedEmployees.map(
+                                    (employee) => _buildEmployeeRow(employee),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                ),
+                // Pagination Footer
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    border: Border(
+                      top: BorderSide(color: Colors.grey.shade300),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Show ', style: TextStyle(fontSize: 12)),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade300),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: DropdownButton<int>(
+                              value: itemsPerPage,
+                              underline: const SizedBox(),
+                              isDense: true,
+                              items: [1, 5, 10, 25, 50, 100].map((int value) {
+                                return DropdownMenuItem<int>(
+                                  value: value,
+                                  child: Text(
+                                    value.toString(),
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (int? newValue) {
+                                if (newValue != null) {
+                                  setState(() {
+                                    itemsPerPage = newValue;
+                                    currentPage = 1; // Reset to first page
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                          const Text(
+                            ' entries',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ),
+                      Flexible(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '${((currentPage - 1) * itemsPerPage) + 1} - ${(currentPage * itemsPerPage).clamp(0, filteredEmployees.length)} of ${filteredEmployees.length}',
+                                style: const TextStyle(fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
                               ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.chevron_left),
+                              onPressed: currentPage > 1
+                                  ? () => setState(() => currentPage--)
+                                  : null,
+                              iconSize: 18,
+                              constraints: const BoxConstraints(
+                                minWidth: 32,
+                                minHeight: 32,
+                              ),
+                              padding: const EdgeInsets.all(4),
+                            ),
+                            Text(
+                              '$currentPage / $totalPages',
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.chevron_right),
+                              onPressed: currentPage < totalPages
+                                  ? () => setState(() => currentPage++)
+                                  : null,
+                              iconSize: 18,
+                              constraints: const BoxConstraints(
+                                minWidth: 32,
+                                minHeight: 32,
+                              ),
+                              padding: const EdgeInsets.all(4),
+                            ),
                           ],
                         ),
                       ),
-                    ),
-            ),
-            // Pagination Footer
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: Colors.grey.shade300)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text('Show ', style: TextStyle(fontSize: 12)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: DropdownButton<int>(
-                          value: itemsPerPage,
-                          underline: const SizedBox(),
-                          isDense: true,
-                          items: [1, 5, 10, 25, 50, 100].map((int value) {
-                            return DropdownMenuItem<int>(
-                              value: value,
-                              child: Text(
-                                value.toString(),
-                                style: const TextStyle(fontSize: 12),
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (int? newValue) {
-                            if (newValue != null) {
-                              setState(() {
-                                itemsPerPage = newValue;
-                                currentPage = 1; // Reset to first page
-                              });
-                            }
-                          },
-                        ),
-                      ),
-                      const Text(' entries', style: TextStyle(fontSize: 12)),
                     ],
                   ),
-                  Flexible(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            '${((currentPage - 1) * itemsPerPage) + 1} - ${(currentPage * itemsPerPage).clamp(0, filteredEmployees.length)} of ${filteredEmployees.length}',
-                            style: const TextStyle(fontSize: 12),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: const Icon(Icons.chevron_left),
-                          onPressed: currentPage > 1
-                              ? () => setState(() => currentPage--)
-                              : null,
-                          iconSize: 18,
-                          constraints: const BoxConstraints(
-                            minWidth: 32,
-                            minHeight: 32,
-                          ),
-                          padding: const EdgeInsets.all(4),
-                        ),
-                        Text(
-                          '$currentPage / $totalPages',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.chevron_right),
-                          onPressed: currentPage < totalPages
-                              ? () => setState(() => currentPage++)
-                              : null,
-                          iconSize: 18,
-                          constraints: const BoxConstraints(
-                            minWidth: 32,
-                            minHeight: 32,
-                          ),
-                          padding: const EdgeInsets.all(4),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
           ),
-        ),
-      ), // Close SafeArea
+        ), // Close SafeArea
       ), // Close RefreshIndicator
     ); // Close Scaffold
   }
@@ -940,12 +1047,18 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
       alignment: Alignment.center,
       child: isCheckbox
           ? Checkbox(
-              value: paginatedEmployees.isNotEmpty && paginatedEmployees.every((emp) => selectedEmployees.contains(emp.id)),
+              value:
+                  paginatedEmployees.isNotEmpty &&
+                  paginatedEmployees.every(
+                    (emp) => selectedEmployees.contains(emp.id),
+                  ),
               onChanged: (value) {
                 setState(() {
                   if (value == true) {
                     // Select all employees on current page
-                    selectedEmployees.addAll(paginatedEmployees.map((emp) => emp.id));
+                    selectedEmployees.addAll(
+                      paginatedEmployees.map((emp) => emp.id),
+                    );
                   } else {
                     // Deselect all employees on current page
                     for (var emp in paginatedEmployees) {
@@ -955,11 +1068,15 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                 });
               },
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: const VisualDensity(horizontal: -4, vertical: -4)
+              visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
             )
           : Text(
               text,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.black87),
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
               overflow: TextOverflow.ellipsis,
             ),
     );
@@ -970,22 +1087,24 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     final email = employee.email ?? 'N/A';
     final employeeId = employee.id;
     // Get role and format display
-    final role = employee.role?.name.toLowerCase() ?? 'surveyor';
+    final roleName = employee.role?.name ?? '';
+    final role = roleName.toLowerCase().trim();
     final prodi = employee.programStudy?.name;
+    
+    print('👤 Employee ${employee.username}: role="$roleName" (normalized: "$role"), prodi=$prodi');
 
     String roleDisplay = '';
-    switch (role) {
-      case 'admin':
-        roleDisplay = 'Admin';
-        break;
-      case 'surveyor':
-        roleDisplay = 'Team Tracer';
-        break;
-      case 'team_prodi':
-        roleDisplay = prodi != null ? 'Team Prodi ($prodi)' : 'Team Prodi';
-        break;
-      default:
-        roleDisplay = 'Unknown';
+    if (role.contains('admin')) {
+      roleDisplay = 'Admin';
+    } else if (role.contains('surveyor') || role.contains('tracer')) {
+      roleDisplay = 'Team Tracer';
+    } else if (role.contains('prodi') || role.contains('team prodi')) {
+      roleDisplay = prodi != null ? 'Team Prodi ($prodi)' : 'Team Prodi';
+    } else if (roleName.isNotEmpty) {
+      // Show the actual role name from backend if it doesn't match known patterns
+      roleDisplay = roleName;
+    } else {
+      roleDisplay = 'Unknown';
     }
 
     return Container(
@@ -1014,18 +1133,23 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
               ),
             ],
           );
-        }
+        },
       ),
     );
   }
 
-  Widget _buildDataCell(String text, {bool isCheckbox = false, String? employeeId}) {
+  Widget _buildDataCell(
+    String text, {
+    bool isCheckbox = false,
+    String? employeeId,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
       alignment: Alignment.center,
       child: isCheckbox
           ? Checkbox(
-              value: employeeId != null && selectedEmployees.contains(employeeId),
+              value:
+                  employeeId != null && selectedEmployees.contains(employeeId),
               onChanged: (value) {
                 setState(() {
                   if (value == true && employeeId != null) {
@@ -1036,7 +1160,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                 });
               },
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: const VisualDensity(horizontal: -4, vertical: -4)
+              visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
             )
           : Text(
               text,
@@ -1080,7 +1204,10 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
               children: [
                 Icon(Icons.delete, size: 16, color: Colors.red),
                 SizedBox(width: 8),
-                Text('Delete', style: TextStyle(fontSize: 13, color: Colors.red)),
+                Text(
+                  'Delete',
+                  style: TextStyle(fontSize: 13, color: Colors.red),
+                ),
               ],
             ),
           ),
