@@ -52,11 +52,10 @@ class ApiService {
       final headers = await _getHeaders(includeAuth: includeAuth);
       final url = Uri.parse(ApiConfig.getUrl(endpoint));
       print('🌐 GET request to: $url');
-      print('📋 Headers: $headers');
 
       final response = await _handleResponse(
         () => http.get(url, headers: headers).timeout(
-              ApiConfig.connectionTimeout,
+              const Duration(seconds: 15), // Reduced timeout for faster failures
             ),
       );
 
@@ -85,7 +84,7 @@ class ApiService {
               headers: headers,
               body: json.encode(data),
             )
-            .timeout(ApiConfig.connectionTimeout),
+            .timeout(const Duration(seconds: 15)), // Reduced timeout
       );
 
       return _processResponse(response);

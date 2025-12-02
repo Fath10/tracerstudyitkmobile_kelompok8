@@ -18,11 +18,9 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkLoginStatus() async {
-    // Load user from stored session
-    await AuthService.loadUser();
-    
-    // Wait a bit for splash screen to be visible
-    await Future.delayed(const Duration(seconds: 2));
+    // User already loaded in main.dart, just check status
+    // Minimal delay for splash visibility (reduced from 2s to 1s)
+    await Future.delayed(const Duration(milliseconds: 800));
 
     if (!mounted) return;
 

@@ -10,7 +10,7 @@ class ApiConfig {
       // Android emulator uses 10.0.2.2 to access host machine's localhost
       // return 'http://10.0.2.2:8000';
       // For physical device, uncomment below and use your computer's IP:
-      return 'http://192.168.1.107:8000';
+      return 'http://192.168.0.105:8000';
     } else if (Platform.isIOS) {
       // iOS simulator can use localhost
       return 'http://localhost:8000';
@@ -81,7 +81,8 @@ class ApiConfig {
     return '$baseUrl$endpoint';
   }
   
-  // Timeout durations
-  static const Duration connectionTimeout = Duration(seconds: 60);
-  static const Duration receiveTimeout = Duration(seconds: 60);
+  // Timeout durations (optimized for mobile devices)
+  static const Duration connectionTimeout = Duration(seconds: 15);
+  static const Duration receiveTimeout = Duration(seconds: 15);
+  static const Duration shortTimeout = Duration(seconds: 8);
 }

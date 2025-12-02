@@ -5,7 +5,7 @@ Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "BACKEND CONNECTIVITY TEST" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
-$BaseUrl = "http://192.168.1.107:8000"
+$BaseUrl = "http://192.168.0.105:8000"
 $TestsPassed = 0
 $TestsFailed = 0
 

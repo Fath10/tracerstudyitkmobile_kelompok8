@@ -86,7 +86,7 @@ class AuthService {
           'password': password,
         }),
       ).timeout(
-        const Duration(seconds: 5), // Reduced timeout for faster response
+        const Duration(seconds: 10), // Increased timeout for reliability
         onTimeout: () {
           throw TimeoutException('Connection timeout');
         },

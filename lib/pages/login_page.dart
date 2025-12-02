@@ -325,6 +325,19 @@ class _LoginPageState extends State<LoginPage> {
                                     ),
                             ),
                           ),
+                          const SizedBox(height: 16),
+                          
+                          // Network test button
+                          TextButton.icon(
+                            onPressed: () {
+                              Navigator.pushNamed(context, '/network-test');
+                            },
+                            icon: const Icon(Icons.wifi_find, size: 18),
+                            label: const Text('Test Network Connection'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.grey[600],
+                            ),
+                          ),
                     const SizedBox(height: 24),
                   ],
                 ),

@@ -2,24 +2,34 @@ import 'package:flutter/material.dart';
 import 'pages/login_page.dart';
 import 'pages/home_page.dart';
 import 'pages/splash_screen.dart';
+import 'pages/network_test_page.dart';
 import 'database/database_helper.dart';
 import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Load user from stored session
+  // Load user from stored session (fast operation)
   await AuthService.loadUser();
   
-  // Create default admin account if no employees exist
-  await _createDefaultAdmin();
+  // Don't block startup for database operations
+  // They will run in background
+  _createDefaultAdmin();
   
   runApp(const MyApp());
 }
 
 Future<void> _createDefaultAdmin() async {
   try {
-    final employees = await DatabaseHelper.instance.getAllEmployees();
+    // Set timeout for database operations
+    final employees = await DatabaseHelper.instance.getAllEmployees().timeout(
+      const Duration(seconds: 2),
+      onTimeout: () {
+        debugPrint('⚠️ Database timeout - skipping admin check');
+        return [];
+      },
+    );
+    
     if (employees.isEmpty) {
       // Create default admin account
       await DatabaseHelper.instance.createEmployee({
@@ -34,10 +44,10 @@ Future<void> _createDefaultAdmin() async {
         'canAccessReports': 1,
         'canAccessSettings': 1,
       });
-      debugPrint('Default admin account created: admin@itk.ac.id / admin123');
+      debugPrint('✅ Default admin account created');
     }
   } catch (e) {
-    debugPrint('Error creating default admin: $e');
+    debugPrint('⚠️ Error creating default admin: $e');
   }
 }
 
@@ -57,6 +67,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/home': (context) => const HomePage(),
         '/login': (context) => const LoginPage(),
+        '/network-test': (context) => const NetworkTestPage(),
       },
     );
   }
