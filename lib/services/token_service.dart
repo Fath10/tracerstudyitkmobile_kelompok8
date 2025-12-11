@@ -54,7 +54,8 @@ class TokenService {
       final refreshToken = await getRefreshToken();
       if (refreshToken == null) return false;
 
-      final url = Uri.parse(ApiConfig.getUrl(ApiConfig.refreshToken));
+      final baseUrl = await ApiConfig.getBaseUrl();
+      final url = Uri.parse('$baseUrl${ApiConfig.refreshToken}');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -107,9 +108,16 @@ class TokenService {
     // Don't clear remember me settings on logout
   }
 
+  // Clear only tokens (keep user data for re-login)
+  static Future<void> clearTokens() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_accessTokenKey);
+    await prefs.remove(_refreshTokenKey);
+  }
+
   // Check if user is logged in
   static Future<bool> isLoggedIn() async {
     final token = await getAccessToken();
-    return token != null;
+    return token != null && token.isNotEmpty;
   }
 }

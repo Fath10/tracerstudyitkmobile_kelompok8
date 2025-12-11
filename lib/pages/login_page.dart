@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_page.dart';
+import 'backend_config_page.dart';
 import '../database/database_helper.dart';
 import '../services/auth_service.dart';
 import '../services/token_service.dart';
@@ -130,37 +131,39 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Center(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 400),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Logo
-                    Center(
-                      child: Container(
-                        width: 150,
-                        height: 150,
-                        child: Image.asset(
-                          'assets/images/Logo ITK.png',
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(
-                              Icons.school,
-                              size: 100,
-                              color: Colors.blue[700],
-                            );
-                          },
+      body: Stack(
+        children: [
+          Center(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // Logo
+                        Center(
+                          child: Container(
+                            width: 150,
+                            height: 150,
+                            child: Image.asset(
+                              'assets/images/Logo ITK.png',
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Icon(
+                                  Icons.school,
+                                  size: 100,
+                                  color: Colors.blue[700],
+                                );
+                              },
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 40),
+                        const SizedBox(height: 40),
                           
                           // User ID field (NOT email)
                           TextFormField(
@@ -345,6 +348,26 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
         ),
+      ),
+          // Settings button (top-right corner)
+          Positioned(
+            top: 40,
+            right: 16,
+            child: IconButton(
+              icon: const Icon(Icons.settings),
+              color: Colors.grey[700],
+              tooltip: 'Konfigurasi Backend',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const BackendConfigPage(),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

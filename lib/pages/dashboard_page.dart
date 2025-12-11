@@ -12,7 +12,6 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   final _surveyService = BackendSurveyService();
   bool _isLoading = true;
-  bool _hasTriedLoading = false;
   Map<String, dynamic> _statistics = {};
   List<Map<String, dynamic>> _responses = [];
 
@@ -27,60 +26,45 @@ class _DashboardPageState extends State<DashboardPage> {
     setState(() => _isLoading = true);
     
     try {
-      // Load all surveys - don't show error on first load
-      final surveys = await _surveyService.getAllSurveys();
+      debugPrint('📊 Loading dashboard data...');
       
-      // Collect all responses from all surveys
+      // Load all surveys without authentication
+      final surveys = await _surveyService.getAllSurveys();
+      debugPrint('   Loaded ${surveys.length} surveys');
+      
+      // Try to collect responses only if surveys loaded successfully
       _responses = [];
-      for (var survey in surveys) {
-        try {
-          final surveyId = survey['id'] as int;
-          final answers = await _surveyService.getSurveyAnswers(surveyId);
-          
-          // Convert answers to the expected format
-          for (var answer in answers) {
-            _responses.add({
-              'survey_id': surveyId,
-              'survey_name': survey['name'] ?? 'Unknown Survey',
-              'answers': answer['answer_text'] ?? '{}',
-              'created_at': answer['created_at'] ?? DateTime.now().toIso8601String(),
-            });
+      if (surveys.isNotEmpty) {
+        for (var survey in surveys) {
+          try {
+            final surveyId = survey['id'] as int;
+            final answers = await _surveyService.getSurveyAnswers(surveyId);
+            
+            // Convert answers to the expected format
+            for (var answer in answers) {
+              _responses.add({
+                'survey_id': surveyId,
+                'survey_name': survey['name'] ?? 'Unknown Survey',
+                'answers': answer['answer_text'] ?? '{}',
+                'created_at': answer['created_at'] ?? DateTime.now().toIso8601String(),
+              });
+            }
+          } catch (e) {
+            // Silently skip - user not authenticated or no permission
+            debugPrint('⚠️ Skipping responses for survey (auth issue)');
+            break;
           }
-        } catch (e) {
-          debugPrint('Error loading responses for survey: $e');
         }
       }
       
       if (!mounted) return;
       // Calculate statistics
       _calculateStatistics();
-      _hasTriedLoading = true;
+      debugPrint('✅ Dashboard data loaded successfully');
     } catch (e) {
-      debugPrint('Error loading dashboard data: $e');
-      // Only show error on retry attempts, not on initial load
-      if (mounted && _hasTriedLoading) {
-        String errorMessage = 'Backend offline. Dashboard unavailable.';
-        if (e.toString().contains('TimeoutException')) {
-          errorMessage = 'Backend timeout. Check connection.';
-        }
-        
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 3),
-            action: SnackBarAction(
-              label: 'Retry',
-              textColor: Colors.white,
-              onPressed: () {
-                _loadDashboardData();
-              },
-            ),
-          ),
-        );
-      } else {
-        _hasTriedLoading = true;
-      }
+      debugPrint('❌ Dashboard error: $e');
+      // Don't show error snackbar, just set loading to false
+      // User can see empty dashboard which is better than error spam
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);

@@ -1,49 +1,60 @@
-# Backend Setup Complete ✅
+# Backend Server Auto-Start Guide 🚀
 
-## Current Configuration
+## Problem
+When you change WiFi networks, your computer's IP address changes, and the Flutter app can't connect to the backend.
 
-### Network Settings
-- **Backend URL**: `http://192.168.0.105:8000`
-- **Server Status**: ✅ Running on port 8000
-- **Firewall**: ✅ Django Dev Server rule enabled
+## Solution ✅
+Use the automated scripts to detect your IP and update the configuration automatically.
 
-### Database Status
-- **Users**: 15 (including 4 admin accounts)
-- **Roles**: 4 (Admin, Surveyor, Team Prodi, Alumni)
-- **Program Studies**: 23
-- **Surveys**: 1
+---
 
-### Test Credentials
-- **Username**: `admin`
-- **Password**: `admin123`
-- **Role**: Admin
+## 🚀 QUICK START (Easiest Method)
 
-Alternative admin accounts:
-- `admin001` / (check backend)
-- `admin@itk.ac.id` / (check backend)
+### Double-click `QUICK_START.bat`
+This will:
+1. ✅ Auto-detect your current IP address
+2. ✅ Update Flutter config (`lib/config/api_config.dart`)
+3. ✅ Start the Django backend server
+4. ✅ Show you the IP address to verify
 
-## Quick Start Guide
+**Then:**
+- Hot restart your Flutter app (press 'r' in terminal)
+- The app will connect to the backend automatically
 
-### 1. Start Backend Server
-```bash
-cd "c:\Code\Flutter\Tracer Study ITK\Backend\capstone_backend"
-python manage.py runserver 0.0.0.0:8000
-```
+---
 
-### 2. Verify Backend is Running
-Open browser: http://192.168.0.105:8000/api/users/
-Or run: `python test_complete.py`
+## Alternative Methods
 
-### 3. Connect Mobile Device
-- Ensure your phone is on the **same WiFi network**
-- WiFi: Your computer's network
-- Phone should be able to access: http://192.168.0.105:8000
+### 📱 Option A: Update IP only
+Double-click `UPDATE_IP.bat`
+- Updates Flutter config with current IP
+- Hot restart your Flutter app after
 
-### 4. Run Flutter App
-```bash
-cd "c:\Code\Flutter\Tracer Study ITK"
-flutter run
-```
+### 🖥️ Option B: Start server only
+Double-click `START_BACKEND.bat`
+- Auto-detects IP and starts Django server
+- Shows the IP address for manual configuration
+
+---
+
+## When WiFi Changes:
+
+1. **Double-click** `QUICK_START.bat` in the project root
+2. **Wait** for it to detect IP and start server (takes ~5 seconds)
+3. **Hot restart** your Flutter app
+4. **Done!** App should connect
+
+### Current Configuration
+
+**Network Settings:**
+- Backend running on port 8000
+- Server listens on all interfaces (0.0.0.0)
+- Current IP: Check `lib/config/api_config.dart` line with `_hostIp`
+
+**Database:**
+- Users: 15 (including 4 admin accounts)
+- Survey: "Tracer Study Alumni ITK 2024" (ID: 10, 15 questions)
+- Test Login: `admin` / `admin123`
 
 ## API Endpoints (All Working ✅)
 

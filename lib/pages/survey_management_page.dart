@@ -86,19 +86,15 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
     });
 
     try {
-      print('DEBUG [SURVEY MANAGEMENT]: Loading surveys from backend...');
+      print('📋 Loading surveys from backend...');
 
       // Load from backend first
       final backendSurveys = await _surveyService.getAllSurveys();
-      print(
-        'DEBUG [SURVEY MANAGEMENT]: Fetched ${backendSurveys.length} surveys from backend',
-      );
+      print('   Fetched ${backendSurveys.length} surveys from backend');
 
       // Also load local storage surveys (fallback)
       final allSurveys = SurveyStorage.getAllAvailableSurveys();
-      print(
-        'DEBUG [SURVEY MANAGEMENT]: Local storage has ${allSurveys.length} surveys',
-      );
+      print('   Local storage has ${allSurveys.length} surveys');
 
       if (!mounted) return;
 
@@ -112,12 +108,9 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
         _isLoadingSurveys = false;
       });
 
-      print(
-        'DEBUG [SURVEY MANAGEMENT]: Loaded ${templateSurveys.length} total surveys',
-      );
+      print('✅ Loaded ${templateSurveys.length} total surveys');
     } catch (e) {
-      print('DEBUG [SURVEY MANAGEMENT]: Error loading surveys: $e');
-      print('DEBUG [SURVEY MANAGEMENT]: Error type: ${e.runtimeType}');
+      print('⚠️ Error loading surveys: $e');
 
       if (!mounted) return;
 
@@ -140,9 +133,9 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
         if (e.toString().contains('SocketException') ||
             e.toString().contains('Connection') ||
             e.toString().contains('http://')) {
-          errorMessage = 'Backend server not available. Using local data only.';
+          errorMessage = 'Backend offline. Using local surveys only.';
         } else {
-          errorMessage = 'Error loading surveys: ${e.toString()}';
+          errorMessage = 'Using local surveys only.';
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2627,6 +2620,13 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
   }
 
   void _takeSurvey(Map<String, dynamic> survey) {
+    // Debug: Check survey data
+    print('🎯 _takeSurvey called');
+    print('   Survey keys: ${survey.keys}');
+    print('   Survey id: ${survey['id']}');
+    print('   Survey name: ${survey['name']}');
+    print('   Survey title: ${survey['title']}');
+    
     // Navigate to questionnaire page normally so back button works
     Navigator.push(
       context,

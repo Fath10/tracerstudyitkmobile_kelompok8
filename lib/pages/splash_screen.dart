@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'login_page.dart';
 import 'home_page.dart';
 import '../services/auth_service.dart';
+import '../config/api_config.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -11,6 +13,8 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  String _statusMessage = 'Memulai aplikasi...';
+  
   @override
   void initState() {
     super.initState();
@@ -18,8 +22,39 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkLoginStatus() async {
-    // User already loaded in main.dart, just check status
-    // Minimal delay for splash visibility (reduced from 2s to 1s)
+    // Configure backend
+    String? backendUrl;
+    
+    try {
+      setState(() {
+        _statusMessage = ApiConfig.isProduction 
+            ? 'Menghubungkan ke server...'
+            : 'Mencari server...';
+      });
+      
+      backendUrl = await ApiConfig.getBaseUrl().timeout(
+        Duration(seconds: ApiConfig.isProduction ? 10 : 20),
+        onTimeout: () {
+          debugPrint('⏱️ Timeout connecting to backend');
+          return ApiConfig.developmentFallback;
+        },
+      );
+      
+      debugPrint('✅ Backend configured: $backendUrl');
+      setState(() {
+        _statusMessage = 'Terhubung!';
+      });
+    } catch (e) {
+      debugPrint('⚠️ Backend setup: $e');
+      backendUrl = ApiConfig.isProduction 
+          ? ApiConfig.productionUrl 
+          : ApiConfig.developmentFallback;
+      setState(() {
+        _statusMessage = 'Menggunakan konfigurasi default';
+      });
+    }
+
+    // Minimal delay for splash visibility
     await Future.delayed(const Duration(milliseconds: 800));
 
     if (!mounted) return;
@@ -85,14 +120,15 @@ class _SplashScreenState extends State<SplashScreen> {
             const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0066CC)),
             ),
-            const SizedBox(height: 80),
-            // Version or tagline
+            const SizedBox(height: 20),
+            // Status message
             Text(
-              'Loading...',
+              _statusMessage,
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.grey[600],
               ),
+              textAlign: TextAlign.center,
             ),
           ],
         ),

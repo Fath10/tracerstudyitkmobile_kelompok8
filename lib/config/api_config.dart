@@ -1,22 +1,121 @@
-import 'dart:io';
+import 'package:flutter/foundation.dart';
+import '../services/network_discovery.dart';
 
 class ApiConfig {
-  // Base URL - Automatically configured based on platform
-  // Android Emulator: http://10.0.2.2:8000
-  // iOS Simulator: http://localhost:8000
-  // Physical device: Use your computer's IP address
+  // ============================================================================
+  // DEPLOYMENT CONFIGURATION
+  // ============================================================================
+  
+  /// Set this to true for production deployment
+  /// Set to false for local development
+  static const bool isProduction = false;
+  
+  /// Your production backend URL (ngrok, Heroku, AWS, etc.)
+  /// Example: 'https://your-app.ngrok-free.app'
+  /// Example: 'https://your-app.herokuapp.com'
+  /// Example: 'https://api.yourdomain.com'
+  static const String productionUrl = 'https://your-backend-url.ngrok-free.app';
+  
+  /// Local development fallback (when auto-discovery fails)
+  static const String developmentFallback = 'http://192.168.0.106:8000';
+  
+  // ============================================================================
+  
+  static String? _discoveredBaseUrl;
+  static bool _isDiscovering = false;
+
+  /// Gets the base URL based on configuration
+  static Future<String> getBaseUrl() async {
+    // PRODUCTION MODE: Use fixed production URL
+    if (isProduction) {
+      _discoveredBaseUrl = productionUrl;
+      debugPrint('🌍 Production mode: $productionUrl');
+      return productionUrl;
+    }
+    
+    // DEVELOPMENT MODE: Auto-discover or use manual setting
+    
+    // Return cached URL if available
+    if (_discoveredBaseUrl != null) {
+      debugPrint('📦 Using cached backend: $_discoveredBaseUrl');
+      return _discoveredBaseUrl!;
+    }
+
+    // Prevent multiple simultaneous discoveries
+    if (_isDiscovering) {
+      debugPrint('⏳ Discovery in progress, waiting...');
+      int waitCount = 0;
+      while (_isDiscovering && waitCount < 150) {
+        await Future.delayed(const Duration(milliseconds: 200));
+        waitCount++;
+      }
+      if (_discoveredBaseUrl != null) {
+        return _discoveredBaseUrl!;
+      }
+      debugPrint('⚠️ Wait timeout, using fallback');
+      _discoveredBaseUrl = developmentFallback;
+      return developmentFallback;
+    }
+
+    _isDiscovering = true;
+    try {
+      debugPrint('🔍 Auto-discovering backend...');
+      
+      // Try to discover backend automatically
+      final discovered = await NetworkDiscovery.discoverBackend().timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          debugPrint('⏱️ Discovery timeout, using fallback');
+          return null;
+        },
+      );
+      
+      if (discovered != null) {
+        _discoveredBaseUrl = discovered;
+        debugPrint('✅ Backend found: $discovered');
+        return discovered;
+      }
+
+      // Discovery failed, use fallback
+      debugPrint('⚠️ Auto-discovery failed, using fallback: $developmentFallback');
+      _discoveredBaseUrl = developmentFallback;
+      return developmentFallback;
+    } catch (e) {
+      debugPrint('❌ Discovery error: $e, using fallback');
+      _discoveredBaseUrl = developmentFallback;
+      return developmentFallback;
+    } finally {
+      _isDiscovering = false;
+    }
+  }
+
+  /// Synchronous getter
   static String get baseUrl {
-    if (Platform.isAndroid) {
-      // Android emulator uses 10.0.2.2 to access host machine's localhost
-      // return 'http://10.0.2.2:8000';
-      // For physical device, uncomment below and use your computer's IP:
-      return 'http://192.168.0.105:8000';
-    } else if (Platform.isIOS) {
-      // iOS simulator can use localhost
-      return 'http://localhost:8000';
-    } else {
-      // Default for desktop/web
-      return 'http://localhost:8000';
+    if (isProduction) return productionUrl;
+    return _discoveredBaseUrl ?? developmentFallback;
+  }
+
+  /// Clears cached backend URL
+  static void resetBackendUrl() {
+    if (!isProduction) {
+      _discoveredBaseUrl = null;
+      NetworkDiscovery.clearCache();
+      debugPrint('🔄 Backend URL reset');
+    }
+  }
+  
+  /// Force rediscovery
+  static Future<String> forceRediscover() async {
+    if (isProduction) return productionUrl;
+    resetBackendUrl();
+    return await getBaseUrl();
+  }
+  
+  /// Manually set backend URL
+  static void setManualUrl(String url) {
+    if (!isProduction) {
+      _discoveredBaseUrl = url;
+      debugPrint('🔧 Manual URL set: $url');
     }
   }
   
@@ -76,13 +175,12 @@ class ApiConfig {
   static const String users = '/api/users/';
   static const String roles = '/api/roles/';
   
-  // Helper to build full URL
-  static String getUrl(String endpoint) {
-    return '$baseUrl$endpoint';
-  }
+  // Timeout durations (increased for network stability)
+  static const Duration connectionTimeout = Duration(seconds: 45);
+  static const Duration receiveTimeout = Duration(seconds: 45);
+  static const Duration shortTimeout = Duration(seconds: 30);
   
-  // Timeout durations (optimized for mobile devices)
-  static const Duration connectionTimeout = Duration(seconds: 15);
-  static const Duration receiveTimeout = Duration(seconds: 15);
-  static const Duration shortTimeout = Duration(seconds: 8);
+  // Retry configuration
+  static const int maxRetries = 3;
+  static const Duration retryDelay = Duration(seconds: 2);
 }

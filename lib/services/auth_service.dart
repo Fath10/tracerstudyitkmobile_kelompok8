@@ -77,7 +77,8 @@ class AuthService {
   // Login with backend
   static Future<bool> login(String username, String password) async {
     try {
-      final url = Uri.parse(ApiConfig.getUrl(ApiConfig.login));
+      final baseUrl = await ApiConfig.getBaseUrl();
+      final url = Uri.parse('$baseUrl${ApiConfig.login}');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -127,7 +128,8 @@ class AuthService {
     required String password,
   }) async {
     try {
-      final url = Uri.parse(ApiConfig.getUrl(ApiConfig.register));
+      final baseUrl = await ApiConfig.getBaseUrl();
+      final url = Uri.parse('$baseUrl${ApiConfig.register}');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},

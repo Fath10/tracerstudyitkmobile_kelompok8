@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'api_service.dart';
 import '../config/api_config.dart';
 
@@ -9,33 +11,44 @@ class BackendSurveyService {
   /// Get all surveys (ordered by newest first)
   Future<List<dynamic>> getAllSurveys() async {
     try {
-      // Try with auth first, fallback to no-auth if 401
-      List<dynamic> surveys;
-      try {
-        final response = await _apiService.get(ApiConfig.surveys);
-        surveys = response is List ? response : (response['results'] ?? []);
-      } catch (e) {
-        // If auth fails, try without auth
-        if (e.toString().contains('401')) {
-          final response = await _apiService.get(ApiConfig.surveys, includeAuth: false);
-          surveys = response is List ? response : (response['results'] ?? []);
-        } else {
-          rethrow;
-        }
-      }
+      // Direct HTTP call without any authentication to avoid token issues
+      final baseUrl = await ApiConfig.getBaseUrl();
+      final url = Uri.parse('$baseUrl${ApiConfig.surveys}');
       
-      // Transform backend format to frontend format
-      return surveys.map((survey) {
-        final s = Map<String, dynamic>.from(survey);
-        return <String, dynamic>{
-          ...s,
-          'name': s['title'] ?? s['name'], // Ensure 'name' field exists
-          'isLive': s['is_active'] ?? false,
-          'isTemplate': false, // Backend surveys are not templates
-        };
-      }).toList();
+      print('🔍 Direct HTTP GET: $url');
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+      
+      print('📡 Response status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final surveys = data is List ? data : (data['results'] ?? []);
+        print('✅ Fetched ${surveys.length} surveys');
+        
+        // Transform backend format to frontend format
+        return surveys.map((survey) {
+          final s = Map<String, dynamic>.from(survey);
+          return <String, dynamic>{
+            ...s,
+            'name': s['title'] ?? s['name'],
+            'isLive': s['is_active'] ?? false,
+            'isTemplate': false,
+          };
+        }).toList();
+      } else {
+        print('❌ HTTP ${response.statusCode}: ${response.body}');
+        return [];
+      }
     } catch (e) {
-      throw Exception('Failed to fetch surveys: $e');
+      print('❌ Error: $e');
+      return [];
     }
   }
 
@@ -44,8 +57,8 @@ class BackendSurveyService {
     try {
       print('📋 Fetching survey $id with all sections and questions...');
       
-      // Fetch base survey
-      final survey = await _apiService.get(ApiConfig.surveyDetail(id));
+      // Fetch base survey (public endpoint, no auth required)
+      final survey = await _apiService.get(ApiConfig.surveyDetail(id), includeAuth: false);
       final surveyData = Map<String, dynamic>.from(survey);
       
       // Fetch all sections for this survey
@@ -198,7 +211,8 @@ class BackendSurveyService {
   /// Get all sections for a survey
   Future<List<dynamic>> getSurveySections(int surveyId) async {
     try {
-      final response = await _apiService.get(ApiConfig.surveySections(surveyId));
+      // Public endpoint, no auth required
+      final response = await _apiService.get(ApiConfig.surveySections(surveyId), includeAuth: false);
       return response is List ? response : (response['results'] ?? []);
     } catch (e) {
       throw Exception('Failed to fetch sections: $e');
@@ -208,7 +222,8 @@ class BackendSurveyService {
   /// Get specific section details
   Future<Map<String, dynamic>> getSectionById(int surveyId, int sectionId) async {
     try {
-      return await _apiService.get(ApiConfig.sectionDetail(surveyId, sectionId));
+      // Public endpoint, no auth required
+      return await _apiService.get(ApiConfig.sectionDetail(surveyId, sectionId), includeAuth: false);
     } catch (e) {
       throw Exception('Failed to fetch section: $e');
     }
@@ -273,7 +288,8 @@ class BackendSurveyService {
   /// Get all questions for a section
   Future<List<dynamic>> getSectionQuestions(int surveyId, int sectionId) async {
     try {
-      final response = await _apiService.get(ApiConfig.surveyQuestions(surveyId, sectionId));
+      // Public endpoint, no auth required
+      final response = await _apiService.get(ApiConfig.surveyQuestions(surveyId, sectionId), includeAuth: false);
       return response is List ? response : (response['results'] ?? []);
     } catch (e) {
       throw Exception('Failed to fetch questions: $e');
@@ -287,8 +303,10 @@ class BackendSurveyService {
     int questionId,
   ) async {
     try {
+      // Public endpoint, no auth required
       return await _apiService.get(
         ApiConfig.questionDetail(surveyId, sectionId, questionId),
+        includeAuth: false,
       );
     } catch (e) {
       throw Exception('Failed to fetch question: $e');
@@ -443,17 +461,35 @@ class BackendSurveyService {
 
   // ============ ANSWER MANAGEMENT ============
   
-  /// Get all answers for a survey
+  /// Get all answers for a survey (requires authentication)
   Future<List<dynamic>> getSurveyAnswers(int surveyId) async {
     try {
+      // Direct HTTP call without authentication (public endpoint)
+      final baseUrl = await ApiConfig.getBaseUrl();
+      final url = Uri.parse('$baseUrl/api/surveys/$surveyId/answers/');
+      
       print('📥 Fetching answers for survey $surveyId');
-      final response = await _apiService.get(ApiConfig.surveyAnswers(surveyId), includeAuth: true);
-      final answers = response is List ? response : (response['results'] ?? []);
-      print('✅ Fetched ${answers.length} answers');
-      return answers;
+      
+      final response = await http.get(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final answers = data is List ? data : (data['results'] ?? []);
+        print('✅ Fetched ${answers.length} answers');
+        return answers;
+      } else {
+        print('❌ HTTP ${response.statusCode}: ${response.body}');
+        return [];
+      }
     } catch (e) {
       print('❌ Error fetching answers: $e');
-      throw Exception('Failed to fetch answers: $e');
+      return [];
     }
   }
 
@@ -472,10 +508,10 @@ class BackendSurveyService {
     return 'text'; // default
   }
 
-  /// Get specific answer by ID
+  /// Get specific answer details (requires authentication)
   Future<Map<String, dynamic>> getAnswerById(int surveyId, int answerId) async {
     try {
-      return await _apiService.get(ApiConfig.answerDetail(surveyId, answerId));
+      return await _apiService.get(ApiConfig.answerDetail(surveyId, answerId), includeAuth: true);
     } catch (e) {
       throw Exception('Failed to fetch answer: $e');
     }
