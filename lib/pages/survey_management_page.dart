@@ -1,17 +1,19 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'employee_directory_page.dart';
+
 import '../auth/login_page.dart';
-import 'user_management_page.dart';
-import 'home_page.dart';
-import 'google_forms_style_survey_editor.dart';
-import 'take_questionnaire_page.dart';
-import 'questionnaire_list_page.dart';
-import 'user_profile_page.dart';
-import '../services/survey_storage.dart';
 import '../services/auth_service.dart';
 import '../services/backend_survey_service.dart';
+import '../services/survey_storage.dart';
+import 'employee_directory_page.dart';
+import 'google_forms_style_survey_editor.dart';
+import 'home_page.dart';
+import 'questionnaire_list_page.dart';
+import 'take_questionnaire_page.dart';
+import 'user_management_page.dart';
+import 'user_profile_page.dart';
 
 class SurveyManagementPage extends StatefulWidget {
   final Map<String, dynamic>? employee;
@@ -978,40 +980,43 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                     builder: (context) =>
                                         GoogleFormsStyleSurveyEditor(
                                           survey: surveyToPass,
+                                        ),
+                                  ),
+                                );
 
-                                                print(
-                                                  'DEBUG [LIVE SURVEY]: Editor closed, result is null: ${result == null}',
-                                                );
+                                print(
+                                  'DEBUG [LIVE SURVEY]: Editor closed, result is null: ${result == null}',
+                                );
 
-                                                if (result != null) {
-                                                  print(
-                                                    'DEBUG [LIVE SURVEY]: Received result with keys: ${result.keys}',
-                                                  );
-                                                  print(
-                                                    'DEBUG [LIVE SURVEY]: Result has sections: ${result['sections'] != null}',
-                                                  );
+                                if (result != null) {
+                                  print(
+                                    'DEBUG [LIVE SURVEY]: Received result with keys: ${result.keys}',
+                                  );
+                                  print(
+                                    'DEBUG [LIVE SURVEY]: Result has sections: ${result['sections'] != null}',
+                                  );
 
-                                                  // Update the survey in storage based on its type
-                                                  if (result['isDefault'] ==
-                                                      true) {
-                                                    print(
-                                                      'DEBUG [LIVE SURVEY]: Updating default survey',
-                                                    );
-                                                    SurveyStorage.updateDefaultSurvey(
-                                                      result['name'],
-                                                      result,
-                                                    );
-                                                  } else {
-                                                    print(
-                                                      'DEBUG [LIVE SURVEY]: ERROR - Live survey is not a default survey!',
-                                                    );
-                                                  }
+                                  // Update the survey in storage based on its type
+                                  if (result['isDefault'] ==
+                                      true) {
+                                    print(
+                                      'DEBUG [LIVE SURVEY]: Updating default survey',
+                                    );
+                                    SurveyStorage.updateDefaultSurvey(
+                                      result['name'],
+                                      result,
+                                    );
+                                  } else {
+                                    print(
+                                      'DEBUG [LIVE SURVEY]: ERROR - Live survey is not a default survey!',
+                                    );
+                                  }
 
-                                                  _loadSurveys(); // Reload surveys to get updated data
-                                                }
+                                  _loadSurveys(); // Reload surveys to get updated data
+                                }
 
-                                                setState(() {});
-                                              } catch (e) {
+                                setState(() {});
+                              } catch (e) {
                                                 // Close loading indicator if still open
                                                 if (mounted && Navigator.canPop(context)) {
                                                   Navigator.pop(context);

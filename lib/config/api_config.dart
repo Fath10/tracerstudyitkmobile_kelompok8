@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+
 import '../services/network_discovery.dart';
 
 class ApiConfig {
@@ -17,7 +18,9 @@ class ApiConfig {
   static const String productionUrl = 'https://your-backend-url.ngrok-free.app';
   
   /// Local development fallback (when auto-discovery fails)
-  static const String developmentFallback = 'http://192.168.0.106:8000';
+  /// Use 10.0.2.2 for Android emulator (refers to host machine's localhost)
+  /// Use 127.0.0.1 for web/desktop development
+  static const String developmentFallback = 'http://10.0.2.2:8000';
   
   // ============================================================================
   

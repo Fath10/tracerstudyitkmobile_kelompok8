@@ -1,6 +1,9 @@
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+
 import '../config/api_config.dart';
 import '../models/user_model.dart';
 import 'token_service.dart';
@@ -94,20 +97,63 @@ class AuthService {
       );
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        
+        debugPrint('🔐 Login response data: $data');
         
         // Save tokens
+        final accessToken = data['access'] as String;
+        final refreshToken = data['refresh'] as String;
         await TokenService.saveTokens(
-          accessToken: data['access'],
-          refreshToken: data['refresh'],
+          accessToken: accessToken,
+          refreshToken: refreshToken,
         );
 
-        // Save user data
-        final userData = data['user'] ?? {};
+        // Decode JWT token to get user info
+        Map<String, dynamic> userData = {};
+        try {
+          // JWT format: header.payload.signature
+          final parts = accessToken.split('.');
+          if (parts.length == 3) {
+            // Decode base64 payload (add padding if needed)
+            String payload = parts[1];
+            // Add padding
+            while (payload.length % 4 != 0) {
+              payload += '=';
+            }
+            
+            final decodedPayload = utf8.decode(base64Url.decode(payload));
+            final jwtData = json.decode(decodedPayload) as Map<String, dynamic>;
+            
+            debugPrint('🔓 Decoded JWT payload: $jwtData');
+            
+            // Build user data from JWT
+            userData = {
+              'id': jwtData['user_id']?.toString() ?? username,
+              'username': username,
+              'email': jwtData['email'],
+              'nim': jwtData['nim'],
+              'role': jwtData['role'] != null ? {
+                'id': 1,
+                'name': jwtData['role'],
+              } : null,
+              'program_study': jwtData['program_study'] != null ? {
+                'id': 1,
+                'name': jwtData['program_study'],
+              } : null,
+            };
+          }
+        } catch (e) {
+          debugPrint('❌ Error decoding JWT: $e');
+        }
+        
+        debugPrint('👤 User data: $userData');
         await TokenService.saveUserData(userData);
         
         // Set current user
         _currentUser = UserModel.fromJson(userData);
+        debugPrint('👤 Current user role: ${_currentUser?.role?.name}');
+        debugPrint('👤 Is Admin: $isAdmin');
         
         return true;
       }

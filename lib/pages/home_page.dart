@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
-import 'employee_directory_page.dart';
+
 import '../auth/login_page.dart';
-import 'user_management_page.dart';
-import 'user_profile_page.dart';
+import '../services/auth_service.dart';
+import '../services/survey_storage.dart';
+import 'dashboard_page.dart';
+import 'employee_directory_page.dart';
+import 'questionnaire_list_page.dart';
 import 'survey_management_page.dart';
 import 'take_questionnaire_page.dart';
-import 'dashboard_page.dart';
-import 'questionnaire_list_page.dart';
-import '../services/survey_storage.dart';
-import '../services/auth_service.dart';
+import 'user_management_page.dart';
+import 'user_profile_page.dart';
 
 class HomePage extends StatefulWidget {
   final Map<String, dynamic>? employee;
@@ -144,9 +145,10 @@ class _HomePageState extends State<HomePage> {
                       ),
                       child: Center(
                         child: Text(
-                          (AuthService.currentUser?.username ?? 'User')
-                              .substring(0, 1)
-                              .toUpperCase(),
+                          () {
+                            final username = AuthService.currentUser?.username ?? 'User';
+                            return username.isNotEmpty ? username.substring(0, 1).toUpperCase() : 'U';
+                          }(),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 28,
