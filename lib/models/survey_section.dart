@@ -25,10 +25,10 @@ class SurveySection {
 
   factory SurveySection.fromJson(Map<String, dynamic> json) {
     return SurveySection(
-      id: json['id'] as String,
-      title: json['title'] as String,
+      id: json['id']?.toString() ?? 'section_${json['order'] ?? 0}', // Backend returns int, convert to string
+      title: json['title'] as String? ?? 'Section',
       description: json['description'] as String? ?? '',
-      order: json['order'] as int,
+      order: json['order'] as int? ?? 0,
       questions: (json['questions'] as List?)
               ?.map((q) => Map<String, dynamic>.from(q))
               .toList() ??

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'home_page.dart';
-import 'backend_config_page.dart';
+import '../pages/home_page.dart';
+import '../utils/pages/backend_config_page.dart';
 import '../database/database_helper.dart';
 import '../services/auth_service.dart';
 import '../services/token_service.dart';

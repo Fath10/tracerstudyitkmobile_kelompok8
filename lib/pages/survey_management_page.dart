@@ -2,10 +2,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'employee_directory_page.dart';
-import 'login_page.dart';
+import '../auth/login_page.dart';
 import 'user_management_page.dart';
 import 'home_page.dart';
-import 'edit_survey_with_sections_page.dart';
+import 'google_forms_style_survey_editor.dart';
 import 'take_questionnaire_page.dart';
 import 'questionnaire_list_page.dart';
 import 'user_profile_page.dart';
@@ -733,7 +733,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                               context,
                                               MaterialPageRoute(
                                                 builder: (context) =>
-                                                    EditSurveyWithSectionsPage(
+                                                    GoogleFormsStyleSurveyEditor(
                                                       survey: {
                                                         'name': 'New Survey',
                                                         'description':
@@ -741,7 +741,6 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                         'sections': [],
                                                         'isLive': false,
                                                       },
-                                                      initialTab: 0,
                                                     ),
                                               ),
                                             ).then((result) async {
@@ -915,54 +914,120 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                           ),
                                           child: InkWell(
                                             onTap: () async {
-                                              // Navigate to edit page to view questions
+                                              // Load full survey with sections and questions
                                               print(
-                                                'DEBUG [LIVE SURVEY]: Opening survey: ${survey['name']}',
+                                                'DEBUG [LIVE SURVEY]: Opening survey: ${survey['title'] ?? survey['name']}',
                                               );
-                                              final result = await Navigator.push(
-                                                context,
-                                                MaterialPageRoute(
-                                                  builder: (context) =>
-                                                      EditSurveyWithSectionsPage(
-                                                        survey: survey,
-                                                        initialTab:
-                                                            0, // Open questions tab
-                                                      ),
+                                              
+                                              // Check if survey has backend ID
+                                              if (survey['id'] == null) {
+                                                // Local survey without backend ID - open directly
+                                                final result = await Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        GoogleFormsStyleSurveyEditor(
+                                                          survey: survey,
+                                                        ),
+                                                  ),
+                                                );
+                                                
+                                                if (result != null) {
+                                                  _loadSurveys();
+                                                }
+                                                setState(() {});
+                                                return;
+                                              }
+                                              
+                                              // Show loading indicator
+                                              showDialog(
+                                                context: context,
+                                                barrierDismissible: false,
+                                                builder: (context) => const Center(
+                                                  child: CircularProgressIndicator(),
                                                 ),
                                               );
+                                              
+                                              try {
+                                                // Fetch full survey with sections and questions from backend
+                                                final fullSurvey = await _surveyService.getSurveyById(survey['id']);
+                                print('📋 Full survey received from backend:');
+                                print('   Keys: ${fullSurvey.keys.toList()}');
+                                print('   Has sections: ${fullSurvey.containsKey('sections')}');
+                                if (fullSurvey.containsKey('sections')) {
+                                  print('   Sections count: ${(fullSurvey['sections'] as List).length}');
+                                  print('   First section: ${(fullSurvey['sections'] as List).first}');
+                                }
+                                
+                                // Close loading indicator
+                                if (mounted) Navigator.pop(context);
+                                
+                                final surveyToPass = {
+                                  ...fullSurvey,
+                                  'name': fullSurvey['title'],
+                                  'isLive': fullSurvey['is_active'] ?? false,
+                                };
+                                print('📋 Survey data being passed to editor:');
+                                print('   Keys: ${surveyToPass.keys.toList()}');
+                                print('   Sections: ${surveyToPass['sections']}');
+                                
+                                // Open editor with full survey data
+                                final result = await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        GoogleFormsStyleSurveyEditor(
+                                          survey: surveyToPass,
 
-                                              print(
-                                                'DEBUG [LIVE SURVEY]: Editor closed, result is null: ${result == null}',
-                                              );
-
-                                              if (result != null) {
                                                 print(
-                                                  'DEBUG [LIVE SURVEY]: Received result with keys: ${result.keys}',
-                                                );
-                                                print(
-                                                  'DEBUG [LIVE SURVEY]: Result has sections: ${result['sections'] != null}',
+                                                  'DEBUG [LIVE SURVEY]: Editor closed, result is null: ${result == null}',
                                                 );
 
-                                                // Update the survey in storage based on its type
-                                                if (result['isDefault'] ==
-                                                    true) {
+                                                if (result != null) {
                                                   print(
-                                                    'DEBUG [LIVE SURVEY]: Updating default survey',
+                                                    'DEBUG [LIVE SURVEY]: Received result with keys: ${result.keys}',
                                                   );
-                                                  SurveyStorage.updateDefaultSurvey(
-                                                    result['name'],
-                                                    result,
-                                                  );
-                                                } else {
                                                   print(
-                                                    'DEBUG [LIVE SURVEY]: ERROR - Live survey is not a default survey!',
+                                                    'DEBUG [LIVE SURVEY]: Result has sections: ${result['sections'] != null}',
                                                   );
+
+                                                  // Update the survey in storage based on its type
+                                                  if (result['isDefault'] ==
+                                                      true) {
+                                                    print(
+                                                      'DEBUG [LIVE SURVEY]: Updating default survey',
+                                                    );
+                                                    SurveyStorage.updateDefaultSurvey(
+                                                      result['name'],
+                                                      result,
+                                                    );
+                                                  } else {
+                                                    print(
+                                                      'DEBUG [LIVE SURVEY]: ERROR - Live survey is not a default survey!',
+                                                    );
+                                                  }
+
+                                                  _loadSurveys(); // Reload surveys to get updated data
                                                 }
 
-                                                _loadSurveys(); // Reload surveys to get updated data
+                                                setState(() {});
+                                              } catch (e) {
+                                                // Close loading indicator if still open
+                                                if (mounted && Navigator.canPop(context)) {
+                                                  Navigator.pop(context);
+                                                }
+                                                
+                                                print('❌ Failed to load survey: $e');
+                                                
+                                                if (mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text('Failed to load survey: $e'),
+                                                      backgroundColor: Colors.red,
+                                                    ),
+                                                  );
+                                                }
                                               }
-
-                                              setState(() {});
                                             },
                                             borderRadius: BorderRadius.circular(
                                               12,
@@ -1485,7 +1550,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                               context,
                                               MaterialPageRoute(
                                                 builder: (context) =>
-                                                    EditSurveyWithSectionsPage(
+                                                    GoogleFormsStyleSurveyEditor(
                                                       survey: {
                                                         'name': 'New Survey',
                                                         'description':
@@ -1493,7 +1558,6 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                         'sections': [],
                                                         'isLive': false,
                                                       },
-                                                      initialTab: 0,
                                                     ),
                                               ),
                                             ).then((result) async {
@@ -1795,7 +1859,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                               context,
                                               MaterialPageRoute(
                                                 builder: (context) =>
-                                                    EditSurveyWithSectionsPage(
+                                                    GoogleFormsStyleSurveyEditor(
                                                       survey: {
                                                         'name': 'New Survey',
                                                         'description':
@@ -1803,7 +1867,6 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                         'sections': [],
                                                         'isLive': false,
                                                       },
-                                                      initialTab: 0,
                                                     ),
                                               ),
                                             );
@@ -2008,91 +2071,127 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                           onSelected: (value) async {
                                                             if (value ==
                                                                 'edit') {
-                                                              // Edit survey
-                                                              final result = await Navigator.push(
-                                                                context,
-                                                                MaterialPageRoute(
-                                                                  builder: (context) => EditSurveyWithSectionsPage(
-                                                                    survey: {
-                                                                      'id':
-                                                                          survey['id'],
-                                                                      'name':
-                                                                          survey['title'] ??
-                                                                          survey['name'],
-                                                                      'title':
-                                                                          survey['title'] ??
-                                                                          survey['name'],
-                                                                      'description':
-                                                                          survey['subtitle'] ??
-                                                                          survey['description'] ??
-                                                                          '',
-                                                                      'questions':
-                                                                          survey['questions'],
-                                                                      'sections':
-                                                                          survey['sections'],
-                                                                      'isDefault':
-                                                                          survey['isDefault'] ??
-                                                                          false,
-                                                                      'isTemplate':
-                                                                          survey['isTemplate'] ??
-                                                                          false,
-                                                                      'isLive':
-                                                                          survey['isLive'] ??
-                                                                          false,
-                                                                    },
+                                                              // Check if survey has backend ID
+                                                              if (survey['id'] == null) {
+                                                                // Local survey without backend ID - open directly
+                                                                final result = await Navigator.push(
+                                                                  context,
+                                                                  MaterialPageRoute(
+                                                                    builder: (context) =>
+                                                                        GoogleFormsStyleSurveyEditor(
+                                                                          survey: survey,
+                                                                        ),
                                                                   ),
+                                                                );
+                                                                
+                                                                if (result != null) {
+                                                                  setState(() {
+                                                                    (section['surveys'] as List)[index] = {
+                                                                      ...result,
+                                                                      'title': result['name'],
+                                                                      'subtitle': result['description'],
+                                                                    };
+                                                                  });
+                                                                }
+                                                                return;
+                                                              }
+                                                              
+                                                              // Load full survey with sections and questions
+                                                              showDialog(
+                                                                context: context,
+                                                                barrierDismissible: false,
+                                                                builder: (context) => const Center(
+                                                                  child: CircularProgressIndicator(),
                                                                 ),
                                                               );
+                                                              
+                                                              try {
+                                                                // Fetch full survey with sections and questions from backend
+                                                                final fullSurvey = await _surveyService.getSurveyById(survey['id']);
+                                                                
+                                                                // Close loading indicator
+                                                                if (mounted) Navigator.pop(context);
+                                                                
+                                                                // Edit survey
+                                                                final result = await Navigator.push(
+                                                                  context,
+                                                                  MaterialPageRoute(
+                                                                    builder: (context) => GoogleFormsStyleSurveyEditor(
+                                                                      survey: {
+                                                                        ...fullSurvey,
+                                                                        'name': fullSurvey['title'],
+                                                                        'isLive': fullSurvey['is_active'] ?? false,
+                                                                      },
+                                                                    ),
+                                                                  ),
+                                                                );
 
-                                                              if (result !=
-                                                                      null &&
-                                                                  result
-                                                                      is Map<
-                                                                        String,
-                                                                        dynamic
-                                                                      >) {
-                                                                // Update in backend if has ID
-                                                                if (survey['id'] !=
-                                                                    null) {
-                                                                  try {
-                                                                    await _surveyService
-                                                                        .updateSurvey(
-                                                                          survey['id'],
-                                                                          result,
-                                                                        );
-                                                                    print(
-                                                                      'DEBUG [SURVEY MANAGEMENT]: Survey updated in backend',
-                                                                    );
-                                                                  } catch (e) {
-                                                                    print(
-                                                                      'DEBUG [SURVEY MANAGEMENT]: Failed to update survey: $e',
+                                                                if (result !=
+                                                                        null &&
+                                                                    result
+                                                                        is Map<
+                                                                          String,
+                                                                          dynamic
+                                                                        >) {
+                                                                  // Update in backend if has ID
+                                                                  if (survey['id'] !=
+                                                                      null) {
+                                                                    try {
+                                                                      await _surveyService
+                                                                          .updateSurvey(
+                                                                            survey['id'],
+                                                                            result,
+                                                                          );
+                                                                      print(
+                                                                        'DEBUG [SURVEY MANAGEMENT]: Survey updated in backend',
+                                                                      );
+                                                                    } catch (e) {
+                                                                      print(
+                                                                        'DEBUG [SURVEY MANAGEMENT]: Failed to update survey: $e',
+                                                                      );
+                                                                    }
+                                                                  }
+
+                                                                  // Update in UI
+                                                                  setState(() {
+                                                                    (section['surveys']
+                                                                        as List)[index] = {
+                                                                      ...result,
+                                                                      'title':
+                                                                          result['name'],
+                                                                      'subtitle':
+                                                                          result['description'],
+                                                                    };
+                                                                  });
+
+                                                                  if (mounted) {
+                                                                    ScaffoldMessenger.of(
+                                                                      context,
+                                                                    ).showSnackBar(
+                                                                      const SnackBar(
+                                                                        content: Text(
+                                                                          'Survey updated successfully!',
+                                                                        ),
+                                                                        backgroundColor:
+                                                                            Colors
+                                                                                .green,
+                                                                      ),
                                                                     );
                                                                   }
                                                                 }
-
-                                                                // Update in UI
-                                                                setState(() {
-                                                                  (section['surveys']
-                                                                      as List)[index] = {
-                                                                    ...result,
-                                                                    'title':
-                                                                        result['name'],
-                                                                    'subtitle':
-                                                                        result['description'],
-                                                                  };
-                                                                });
-
+                                                              } catch (e) {
+                                                                // Close loading indicator if still open
+                                                                if (mounted && Navigator.canPop(context)) {
+                                                                  Navigator.pop(context);
+                                                                }
+                                                                
+                                                                print('❌ Failed to load survey: $e');
+                                                                
                                                                 if (mounted) {
-                                                                  ScaffoldMessenger.of(
-                                                                    context,
-                                                                  ).showSnackBar(
-                                                                    const SnackBar(
-                                                                      content: Text(
-                                                                        'Survey updated successfully!',
-                                                                      ),
-                                                                      backgroundColor:
-                                                                          Colors
-                                                                              .green,
+                                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                                    SnackBar(
+                                                                      content: Text('Failed to load survey: $e'),
+                                                                      backgroundColor: Colors.red,
                                                                     ),
                                                                   );
                                                                 }
@@ -2422,7 +2521,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
     int index, {
     bool isCustom = false,
   }) async {
-    // Convert survey data to match EditSurveyWithSectionsPage expectations
+    // Convert survey data to match GoogleFormsStyleSurveyEditor expectations
     final surveyData = {
       'id': survey['id'], // Include survey ID for backend updates
       'name': survey['title'] ?? survey['name'] ?? 'Untitled Survey',
@@ -2452,7 +2551,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => EditSurveyWithSectionsPage(survey: surveyData),
+        builder: (context) => GoogleFormsStyleSurveyEditor(survey: surveyData),
       ),
     );
 
@@ -2633,7 +2732,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
       MaterialPageRoute(
         builder: (context) => TakeQuestionnairePage(
           survey: {
-            'id': survey['id'] ?? 0, // Include survey ID for backend submission
+            'id': survey['id'], // Don't default to 0, keep null for local surveys
             'name': survey['title'] ?? survey['name'] ?? 'Survey',
             'description':
                 survey['subtitle'] ??
@@ -2711,3 +2810,5 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
     );
   }
 }
+
+

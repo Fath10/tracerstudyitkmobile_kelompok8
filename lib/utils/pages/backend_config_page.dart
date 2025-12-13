@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../config/api_config.dart';
-import '../services/network_discovery.dart';
+import '../../config/api_config.dart';
+import '../../services/network_discovery.dart';
 
 class BackendConfigPage extends StatefulWidget {
   const BackendConfigPage({super.key});

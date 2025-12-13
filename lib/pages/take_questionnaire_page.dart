@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'home_page.dart';
-import 'login_page.dart';
+import '../auth/login_page.dart';
 import 'user_profile_page.dart';
 import '../services/survey_storage.dart';
 import '../services/backend_survey_service.dart';
 import '../services/auth_service.dart';
+import '../models/conditional_logic.dart';
 
 class TakeQuestionnairePage extends StatefulWidget {
   final Map<String, dynamic> survey;
@@ -38,6 +39,13 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
   // Store backend survey data with question IDs
   Map<String, dynamic>? _backendSurvey;
   bool _loadingBackendSurvey = false;
+  
+  // Track visible questions and sections based on conditional logic
+  final Set<int> _visibleQuestions = {};
+  final Set<String> _visibleSections = {};
+  
+  // Track conditional logic for questions
+  final Map<int, List<QuestionCondition>> _questionConditions = {};
 
   // Get sections for this survey
   List<Map<String, dynamic>> get _surveySections {
@@ -89,10 +97,41 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
     _nameController.text = AuthService.currentUser?.username ?? '';
     _nimController.text = AuthService.currentUser?.nim ?? AuthService.currentUser?.id ?? '';
     
+    // Initialize visible questions and sections
+    _initializeConditionalLogic();
+    
     // Load backend survey with questions if this is a backend survey
     if (widget.survey['id'] != null) {
       _loadBackendSurvey();
     }
+  }
+  
+  void _initializeConditionalLogic() {
+    // Initially all sections are visible
+    for (var section in _surveySections) {
+      _visibleSections.add(section['id'] ?? 'section_${_surveySections.indexOf(section)}');
+    }
+    
+    // Initially all questions are visible
+    for (int i = 0; i < _allQuestions.length; i++) {
+      _visibleQuestions.add(i);
+      
+      // Load conditional logic for this question if exists
+      final question = _allQuestions[i];
+      if (question['conditionalLogic'] != null) {
+        final conditions = (question['conditionalLogic'] as List)
+            .map((c) => QuestionCondition.fromJson(c))
+            .toList();
+        _questionConditions[i] = conditions;
+      }
+    }
+  }
+  
+  void _evaluateConditionalLogic(int changedQuestionIndex) {
+    // In Google Forms style, conditional logic is handled during navigation
+    // This method is kept for compatibility but navigation is now handled
+    // when user clicks "Next" button - checking the current question's conditions
+    // No real-time evaluation needed
   }
   
   Future<void> _loadBackendSurvey() async {
@@ -387,6 +426,15 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
                   },
                   itemBuilder: (context, sectionIndex) {
                     final section = _surveySections[sectionIndex];
+                    final sectionId = section['id'] ?? 'section_$sectionIndex';
+                    
+                    // Skip section if not visible due to conditional logic
+                    if (!_visibleSections.contains(sectionId)) {
+                      return const Center(
+                        child: Text('This section is hidden based on your previous answers'),
+                      );
+                    }
+                    
                     final sectionQuestions = List<Map<String, dynamic>>.from(section['questions'] ?? []);
                     
                     // Calculate cumulative question number offset for this section
@@ -586,10 +634,15 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
                             const SizedBox(height: 16),
                           ],
                           
-                          // Questions for this section
+                          // Questions for this section (only visible ones)
                           ...List.generate(sectionQuestions.length, (index) {
                             final question = sectionQuestions[index];
                             final questionId = question['id'] ?? index;
+                            
+                            // Skip if question is not visible due to conditional logic
+                            if (!_visibleQuestions.contains(questionOffset + index)) {
+                              return const SizedBox.shrink();
+                            }
                             
                             return Container(
                               width: double.infinity,
@@ -677,7 +730,56 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
                                 if (sectionIndex < _surveySections.length - 1)
                                   ElevatedButton.icon(
                                     onPressed: () {
-                                      _sectionPageController.nextPage(
+                                      // Check for option-based navigation (Google Forms style)
+                                      int targetSection = sectionIndex + 1;
+                                      bool shouldSubmit = false;
+                                      
+                                      // Get all questions in current section
+                                      final section = _surveySections[sectionIndex];
+                                      final sectionQuestions = section['questions'] as List? ?? [];
+                                      
+                                      // Check each question for option navigations
+                                      for (var question in sectionQuestions) {
+                                        final questionId = question['id'];
+                                        final optionNavigations = question['optionNavigations'];
+                                        
+                                        if (optionNavigations != null && _answers.containsKey(questionId)) {
+                                          final navigations = (optionNavigations as List)
+                                              .map((n) => OptionNavigation.fromJson(n))
+                                              .toList();
+                                          
+                                          final currentAnswer = _answers[questionId];
+                                          
+                                          // Find navigation for this answer
+                                          final navigation = navigations.cast<OptionNavigation?>().firstWhere(
+                                            (nav) => nav!.optionText.toLowerCase() == currentAnswer.toString().toLowerCase(),
+                                            orElse: () => null,
+                                          );
+                                          
+                                          if (navigation != null && navigation.navigateTo != 'continue') {
+                                            if (navigation.navigateTo == 'submit') {
+                                              shouldSubmit = true;
+                                              break;
+                                            } else if (navigation.navigateTo.startsWith('section_')) {
+                                              targetSection = navigation.targetIndex ?? (sectionIndex + 1);
+                                              break;
+                                            } else if (navigation.navigateTo.startsWith('question_')) {
+                                              // For now, continue to next section
+                                              // Question-level navigation within section will be handled later
+                                              break;
+                                            }
+                                          }
+                                        }
+                                      }
+                                      
+                                      if (shouldSubmit) {
+                                        _submitSurvey();
+                                        return;
+                                      }
+                                      
+                                      // Navigate to target section
+                                      _sectionPageController.animateToPage(
+                                        targetSection,
                                         duration: const Duration(milliseconds: 300),
                                         curve: Curves.easeInOut,
                                       );
@@ -795,6 +897,8 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
             onChanged: (value) {
               setState(() {
                 _answers[questionId] = value;
+                // Evaluate conditional logic when answer changes
+                _evaluateConditionalLogic(questionId);
               });
             },
             contentPadding: EdgeInsets.zero,
@@ -1085,8 +1189,14 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
       final surveyIdRaw = widget.survey['id'];
       final surveyName = widget.survey['name'] ?? widget.survey['title'] ?? 'Unknown Survey';
       
+      // Debug: Check survey data
+      print('🔍 Survey submission data:');
+      print('   Survey keys: ${widget.survey.keys}');
+      print('   Survey ID raw: $surveyIdRaw (type: ${surveyIdRaw.runtimeType})');
+      print('   Survey name: $surveyName');
+      
       // Handle survey submission
-      if (surveyIdRaw == null) {
+      if (surveyIdRaw == null || surveyIdRaw == 0) {
         // This is a local survey from SurveyStorage (no backend ID)
         print('📝 Survey submitted locally: $surveyName');
         print('   User: ${AuthService.currentUser?.username}');

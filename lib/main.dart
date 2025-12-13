@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'pages/login_page.dart';
+import 'auth/login_page.dart';
 import 'pages/home_page.dart';
-import 'pages/splash_screen.dart';
-import 'pages/network_test_page.dart';
+import 'auth/splash_screen.dart';
+import 'utils/pages/network_test_page.dart';
 import 'database/database_helper.dart';
 import 'services/auth_service.dart';
 

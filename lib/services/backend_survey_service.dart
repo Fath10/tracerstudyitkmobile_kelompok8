@@ -72,8 +72,25 @@ class BackendSurveyService {
         
         try {
           final questions = await getSectionQuestions(id, sectionId);
-          section['questions'] = questions;
-          print('      Section ${i + 1}: ${questions.length} questions');
+          
+          // Transform backend format to frontend format
+          print('         Raw questions from backend: $questions');
+          final transformedQuestions = questions.map((q) {
+            final transformed = {
+              'id': q['id'],
+              'text': q['text'] ?? '',
+              'type': q['question_type'] ?? 'text', // Backend uses 'question_type', frontend uses 'type'
+              'required': q['is_required'] ?? false, // Backend uses 'is_required', frontend uses 'required'
+              'options': q['options'] ?? [],
+              'description': q['description'],
+              'order': q['order'],
+            };
+            print('         Transformed question: id=${transformed['id']}, type=${transformed['type']}');
+            return transformed;
+          }).toList();
+          
+          section['questions'] = transformedQuestions;
+          print('      Section ${i + 1}: ${transformedQuestions.length} questions transformed');
         } catch (e) {
           print('      ⚠️ Failed to load questions for section $sectionId: $e');
           section['questions'] = [];

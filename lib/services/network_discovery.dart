@@ -117,6 +117,16 @@ class NetworkDiscovery {
       }
     }
 
+    // Final fallback to known IP
+    print('🔄 Trying known backend IP as last resort...');
+    const fallbackUrl = 'http://192.168.0.106:$_backendPort';
+    if (await _isBackendReachable(fallbackUrl)) {
+      _cachedBackendUrl = fallbackUrl;
+      _lastDiscoveryTime = DateTime.now();
+      print('✅ Using fallback address: $fallbackUrl');
+      return fallbackUrl;
+    }
+
     print('❌ Backend discovery failed completely');
     return null;
   }

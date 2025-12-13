@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'employee_edit_page.dart';
 import 'user_management_page.dart';
-import 'login_page.dart';
+import '../auth/login_page.dart';
 import 'home_page.dart';
 import 'survey_management_page.dart';
 import 'take_questionnaire_page.dart';
