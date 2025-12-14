@@ -21,7 +21,7 @@ class BackendUserService {
         : ApiConfig.users;
       
       print('👥 Fetching users from: $url');
-      final response = await _apiService.get(url, includeAuth: false);
+      final response = await _apiService.get(url, includeAuth: true);
       final List<dynamic> data = response is List ? response : (response['results'] ?? []);
       final users = data.map((json) => UserModel.fromJson(json)).toList();
       
@@ -149,7 +149,7 @@ class BackendUserService {
       final response = await _apiService.put(
         '${ApiConfig.users}$id/',
         userData,
-        includeAuth: false,
+        includeAuth: true,
       );
       print('✅ User updated successfully');
       return UserModel.fromJson(response);
@@ -175,7 +175,7 @@ class BackendUserService {
   // Delete user
   Future<void> deleteUser(String id) async {
     try {
-      await _apiService.delete('${ApiConfig.users}$id/', includeAuth: false);
+      await _apiService.delete('${ApiConfig.users}$id/', includeAuth: true);
     } catch (e) {
       throw Exception('Failed to delete user: $e');
     }
@@ -186,7 +186,7 @@ class BackendUserService {
   // Get all roles (public endpoint - no auth needed for GET)
   Future<List<RoleModel>> getAllRoles() async {
     try {
-      final response = await _apiService.get(ApiConfig.roles, includeAuth: false);
+      final response = await _apiService.get(ApiConfig.roles, includeAuth: true);
       final List<dynamic> data = response is List ? response : (response['results'] ?? []);
       final roles = data.map((json) => RoleModel.fromJson(json)).toList();
       
