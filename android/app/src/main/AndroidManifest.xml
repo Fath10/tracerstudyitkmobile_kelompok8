@@ -1,8 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Required for network access -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Required for WebView to access network state -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     
     <application
+        android:usesCleartextTraffic="true"
         android:label="tracer_study_itk"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

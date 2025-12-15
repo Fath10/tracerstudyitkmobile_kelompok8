@@ -52,6 +52,12 @@ dependencies:
   
   # Local storage for tokens
   shared_preferences: ^2.2.2
+  
+  # WebView for loading React/Next.js frontend
+  webview_flutter: ^4.10.0
+  
+  # URL launcher for external links
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:
