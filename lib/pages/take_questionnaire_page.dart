@@ -8,6 +8,7 @@ import '../services/backend_survey_service.dart';
 import '../services/auth_service.dart';
 import '../models/conditional_logic.dart';
 import '../models/survey_branch.dart';
+import '../widgets/standard_drawer.dart';
 
 class TakeQuestionnairePage extends StatefulWidget {
   final Map<String, dynamic> survey;
@@ -33,7 +34,7 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
   final PageController _sectionPageController = PageController();
   
   // Store answers for each question
-  final Map<int, dynamic> _answers = {};
+  final Map<dynamic, dynamic> _answers = {};
   bool _isSubmitting = false;
   int _currentSectionIndex = 0;
   
@@ -256,159 +257,9 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
             ),
           ],
         ),
-        endDrawer: Drawer(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Colors.blue[400]!, Colors.blue[600]!],
-              ),
-            ),
-            child: Column(
-              children: [
-                // Close button
-                Padding(
-                  padding: const EdgeInsets.only(left: 16, top: 40, right: 16),
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                    ),
-                  ),
-                ),
-
-                // User profile section
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                  child: Column(
-                    children: [
-                      // Avatar
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.3),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        child: Center(
-                          child: Text(
-                            (AuthService.currentUser?.username ?? 'U').substring(0, 1).toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // User name
-                      Text(
-                        AuthService.currentUser?.username ?? 'Your Name',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-
-                      // User ID/Email
-                      Text(
-                        AuthService.currentUser?.nim ?? AuthService.currentUser?.email ?? '11221044',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // Menu items
-                Expanded(
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(30),
-                        topRight: Radius.circular(30),
-                      ),
-                    ),
-                    child: ListView(
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      children: [
-                        // Dashboard for employees
-                        if (AuthService.isAdmin || AuthService.isSurveyor || AuthService.isTeamProdi)
-                          _buildDrawerItem(
-                            icon: Icons.dashboard,
-                            title: 'Dashboard',
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(builder: (context) => const HomePage()),
-                              );
-                            },
-                          ),
-
-                        // Users (alumni) - show Take Questionnaire option
-                        if (AuthService.isUser)
-                          _buildDrawerItem(
-                            icon: Icons.assignment_outlined,
-                            title: 'Take Questionnaire',
-                            onTap: () {
-                              Navigator.pop(context);
-                              // Already on questionnaire page
-                            },
-                          ),
-
-                        const Divider(height: 32),
-                        
-                        // Profile
-                        _buildDrawerItem(
-                          icon: Icons.person,
-                          title: 'My Profile',
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const UserProfilePage(),
-                              ),
-                            );
-                          },
-                        ),
-                        
-                        const SizedBox(height: 8),
-                        
-                        // Logout
-                        _buildDrawerItem(
-                          icon: Icons.logout,
-                          title: 'Logout',
-                          onTap: () {
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(builder: (context) => const LoginPage()),
-                              (route) => false,
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        endDrawer: StandardDrawer(
+          employee: widget.employee,
+          currentRoute: '/take-questionnaire',
         ),
         body: Column(
           children: [
@@ -868,7 +719,7 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
     );
   }
 
-  Widget _buildQuestionInput(Map<String, dynamic> question, int questionId) {
+  Widget _buildQuestionInput(Map<String, dynamic> question, dynamic questionId) {
     final questionType = question['type'] ?? 'text';
     
     switch (questionType) {
@@ -884,7 +735,7 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
     }
   }
 
-  Widget _buildMultipleChoiceInput(Map<String, dynamic> question, int questionId) {
+  Widget _buildMultipleChoiceInput(Map<String, dynamic> question, dynamic questionId) {
     final options = List<String>.from(question['options'] ?? []);
     
     return Column(
@@ -915,7 +766,7 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
     );
   }
 
-  Widget _buildYesNoInput(Map<String, dynamic> question, int questionId) {
+  Widget _buildYesNoInput(Map<String, dynamic> question, dynamic questionId) {
     return Column(
       children: [
         Container(
@@ -962,7 +813,7 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
     );
   }
 
-  Widget _buildRatingInput(Map<String, dynamic> question, int questionId) {
+  Widget _buildRatingInput(Map<String, dynamic> question, dynamic questionId) {
     final scale = question['scale'] ?? 5;
     final labels = List<String>.from(question['labels'] ?? ['Poor', 'Excellent']);
     
@@ -1032,7 +883,7 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
     );
   }
 
-  Widget _buildTextInput(Map<String, dynamic> question, int questionId) {
+  Widget _buildTextInput(Map<String, dynamic> question, dynamic questionId) {
     final placeholder = question['placeholder'] ?? 'Enter your answer';
     
     return TextFormField(
@@ -1414,26 +1265,4 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
     }
   }
 
-  Widget _buildDrawerItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        leading: Icon(icon, color: Colors.grey[700]),
-        title: Text(
-          title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-        ),
-        onTap: onTap,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
 }

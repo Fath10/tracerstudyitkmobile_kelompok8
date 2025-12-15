@@ -20,7 +20,7 @@ class ApiConfig {
   /// Local development fallback (when auto-discovery fails)
   /// Use 10.0.2.2 for Android emulator (refers to host machine's localhost)
   /// Use 127.0.0.1 for web/desktop development
-  static const String developmentFallback = 'http://10.0.2.2:8000';
+  static const String developmentFallback = 'http://127.0.0.1:8000';
   
   // ============================================================================
   

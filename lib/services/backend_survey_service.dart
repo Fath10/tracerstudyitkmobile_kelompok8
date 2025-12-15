@@ -23,7 +23,7 @@ class BackendSurveyService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 30));
       
       print('📡 Response status: ${response.statusCode}');
       
@@ -493,7 +493,7 @@ class BackendSurveyService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 30));
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);

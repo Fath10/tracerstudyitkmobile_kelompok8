@@ -7,6 +7,7 @@ import '../auth/login_page.dart';
 import '../services/auth_service.dart';
 import '../services/backend_survey_service.dart';
 import '../services/survey_storage.dart';
+import '../widgets/standard_drawer.dart';
 import 'employee_directory_page.dart';
 import 'google_forms_style_survey_editor.dart';
 import 'home_page.dart';
@@ -247,247 +248,9 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
             ),
           ],
         ),
-        endDrawer: Drawer(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Colors.blue[400]!, Colors.blue[600]!],
-              ),
-            ),
-            child: Column(
-              children: [
-                // Close button
-                Padding(
-                  padding: const EdgeInsets.only(left: 16, top: 40, right: 16),
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: IconButton(
-                      icon: const Icon(Icons.close, color: Colors.white),
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                    ),
-                  ),
-                ),
-
-                // User profile section
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 20,
-                  ),
-                  child: Column(
-                    children: [
-                      // Avatar
-                      Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.3),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        child: Center(
-                          child: Text(
-                            (AuthService.currentUser?.username ?? 'User')
-                                .substring(0, 1)
-                                .toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // User name
-                      Text(
-                        AuthService.currentUser?.username ?? 'Your Name',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-
-                      // User ID/Email
-                      Text(
-                        AuthService.currentUser?.nim ??
-                            AuthService.currentUser?.email ??
-                            '11221044',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.9),
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // Menu items
-                Expanded(
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(30),
-                        topRight: Radius.circular(30),
-                      ),
-                    ),
-                    child: ListView(
-                      padding: const EdgeInsets.symmetric(vertical: 20),
-                      children: [
-                        // Dashboard for employees
-                        if (AuthService.isAdmin ||
-                            AuthService.isSurveyor ||
-                            AuthService.isTeamProdi)
-                          _buildDrawerItem(
-                            icon: Icons.dashboard,
-                            title: 'Dashboard',
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const HomePage(),
-                                ),
-                              );
-                            },
-                          ),
-
-                        // Only show Unit Directory for admins
-                        if (AuthService.isAdmin)
-                          _buildExpandableSection(
-                            icon: Icons.business_center_outlined,
-                            title: 'Unit Directory',
-                            children: [
-                              _buildSubMenuItem(
-                                icon: Icons.folder_outlined,
-                                title: 'User Management',
-                                onTap: () {
-                                  Navigator.pop(context);
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const UserManagementPage(),
-                                    ),
-                                  );
-                                },
-                              ),
-                              _buildSubMenuItem(
-                                icon: Icons.business_outlined,
-                                title: 'Employee Directory',
-                                onTap: () {
-                                  Navigator.pop(context);
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const EmployeeDirectoryPage(),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-                        // Show Questionnaire section for employees
-                        if (AuthService.isAdmin ||
-                            AuthService.isSurveyor ||
-                            AuthService.isTeamProdi)
-                          _buildExpandableSection(
-                            icon: Icons.poll_outlined,
-                            title: 'Questionnaire',
-                            children: [
-                              _buildSubMenuItem(
-                                icon: Icons.dashboard_outlined,
-                                title: 'Survey Management',
-                                onTap: () {
-                                  Navigator.pop(context);
-                                  // Already on Survey Management page
-                                },
-                              ),
-                              _buildSubMenuItem(
-                                icon: Icons.assignment_outlined,
-                                title: 'Take Questionnaire',
-                                onTap: () {
-                                  Navigator.pop(context);
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) =>
-                                          const QuestionnaireListPage(),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
-
-                        // Users (alumni) - show Take Questionnaire option
-                        if (AuthService.isUser)
-                          _buildDrawerItem(
-                            icon: Icons.assignment_outlined,
-                            title: 'Take Questionnaire',
-                            onTap: () {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const QuestionnaireListPage(),
-                                ),
-                              );
-                            },
-                          ),
-
-                        const Divider(height: 32),
-
-                        // Profile
-                        _buildDrawerItem(
-                          icon: Icons.person,
-                          title: 'My Profile',
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const UserProfilePage(),
-                              ),
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 8),
-
-                        // Logout
-                        _buildDrawerItem(
-                          icon: Icons.logout,
-                          title: 'Logout',
-                          onTap: () {
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const LoginPage(),
-                              ),
-                              (route) => false,
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        endDrawer: StandardDrawer(
+          employee: widget.employee,
+          currentRoute: '/survey-management',
         ),
         body: Column(
           children: [
@@ -1340,53 +1103,122 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                               const SizedBox(height: 24),
                             ],
 
-                            // Template Category
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Expanded(
-                                  child: Row(
-                                    children: [
-                                      Flexible(
-                                        child: isEditingTemplateSection
-                                            ? TextField(
-                                                controller:
-                                                    _templateSectionController,
-                                                autofocus: true,
+                            // Template Section REMOVED (templates now shown in Live Questionnaires if isLive=true)
+
+                            const SizedBox(height: 12),
+
+                            // Template Cards Grid
+                            SizedBox(
+                              height: 140,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: templateSurveys.length,
+                                itemBuilder: (context, index) {
+                                  final template = templateSurveys[index];
+
+                                  return Container(
+                                    width: 120,
+                                    margin: const EdgeInsets.only(right: 12),
+                                    child: Card(
+                                      elevation: 1,
+                                      color: Colors.grey[200],
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: InkWell(
+                                        onTap: () {
+                                          _takeSurvey(template);
+                                        },
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12),
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment
+                                                        .spaceBetween,
+                                                children: [
+                                                  Container(
+                                                    width: 32,
+                                                    height: 32,
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.blue[50],
+                                                      borderRadius:
+                                                          BorderRadius.circular(6),
+                                                    ),
+                                                    child: Icon(
+                                                      Icons.description,
+                                                      size: 18,
+                                                      color: Colors.blue[700],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const Spacer(),
+                                              Text(
+                                                template['title']?.toString() ??
+                                                    'Untitled',
                                                 style: const TextStyle(
-                                                  fontSize: 18,
+                                                  fontSize: 12,
                                                   fontWeight: FontWeight.w600,
                                                   color: Colors.black87,
                                                 ),
-                                                decoration:
-                                                    const InputDecoration(
-                                                      border:
-                                                          UnderlineInputBorder(),
-                                                      isDense: true,
-                                                      contentPadding:
-                                                          EdgeInsets.symmetric(
-                                                            vertical: 4,
-                                                          ),
-                                                    ),
-                                                onSubmitted: (value) {
-                                                  setState(() {
-                                                    templateSectionTitle =
-                                                        value;
-                                                    isEditingTemplateSection =
-                                                        false;
-                                                  });
-                                                },
-                                              )
-                                            : Text(
-                                                templateSectionTitle,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                template['subtitle']
+                                                        ?.toString() ??
+                                                    'No description',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  color: Colors.grey[600],
+                                                ),
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // Custom Sections (dynamically created by user)
+                            ...customSections.map((section) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Custom Category Header
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Row(
+                                          children: [
+                                            Flexible(
+                                              child: Text(
+                                                section['title'] as String,
                                                 style: const TextStyle(
                                                   fontSize: 18,
                                                   fontWeight: FontWeight.w600,
                                                   color: Colors.black87,
                                                 ),
                                               ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                      const SizedBox(width: 4),
                                       PopupMenuButton<String>(
                                         padding: EdgeInsets.zero,
                                         icon: Icon(
@@ -1405,28 +1237,26 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                   color: Colors.blue[700],
                                                 ),
                                                 const SizedBox(width: 8),
-                                                Text(
-                                                  isEditingTemplateSection
-                                                      ? 'Save'
-                                                      : 'Edit Name',
-                                                  style: const TextStyle(
+                                                const Text(
+                                                  'Edit Name',
+                                                  style: TextStyle(
                                                     fontSize: 13,
                                                   ),
                                                 ),
                                               ],
                                             ),
                                           ),
-                                          const PopupMenuItem(
+                                          PopupMenuItem(
                                             value: 'delete',
                                             child: Row(
                                               children: [
-                                                Icon(
+                                                const Icon(
                                                   Icons.delete_outline,
                                                   size: 16,
                                                   color: Colors.red,
                                                 ),
-                                                SizedBox(width: 8),
-                                                Text(
+                                                const SizedBox(width: 8),
+                                                const Text(
                                                   'Delete Category',
                                                   style: TextStyle(
                                                     color: Colors.red,
@@ -1435,78 +1265,27 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                               ],
                                             ),
                                           ),
-                                          const PopupMenuItem(
+                                          PopupMenuItem(
                                             value: 'add_survey',
                                             child: Row(
                                               children: [
-                                                Icon(
+                                                const Icon(
                                                   Icons.add_circle_outline,
                                                   size: 16,
                                                 ),
-                                                SizedBox(width: 8),
-                                                Text('Add Survey'),
+                                                const SizedBox(width: 8),
+                                                const Text('Add Survey'),
                                               ],
                                             ),
                                           ),
                                         ],
-                                        onSelected: (value) {
+                                        onSelected: (value) async {
                                           if (value == 'edit') {
-                                            setState(() {
-                                              if (isEditingTemplateSection) {
-                                                templateSectionTitle =
-                                                    _templateSectionController
-                                                        .text;
-                                              }
-                                              isEditingTemplateSection =
-                                                  !isEditingTemplateSection;
-                                            });
+                                            _showEditSectionDialog(section);
                                           } else if (value == 'delete') {
-                                            showDialog(
-                                              context: context,
-                                              builder: (BuildContext context) =>
-                                                  AlertDialog(
-                                                    title: const Text(
-                                                      'Delete Category',
-                                                    ),
-                                                    content: const Text(
-                                                      'Are you sure you want to delete this category?',
-                                                    ),
-                                                    actions: [
-                                                      TextButton(
-                                                        onPressed: () =>
-                                                            Navigator.pop(
-                                                              context,
-                                                            ),
-                                                        child: const Text(
-                                                          'Cancel',
-                                                        ),
-                                                      ),
-                                                      TextButton(
-                                                        onPressed: () {
-                                                          Navigator.pop(
-                                                            context,
-                                                          );
-                                                          ScaffoldMessenger.of(
-                                                            context,
-                                                          ).showSnackBar(
-                                                            const SnackBar(
-                                                              content: Text(
-                                                                'Cannot delete default category',
-                                                              ),
-                                                            ),
-                                                          );
-                                                        },
-                                                        child: const Text(
-                                                          'Delete',
-                                                          style: TextStyle(
-                                                            color: Colors.red,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                            );
+                                            _deleteSection(section);
                                           } else if (value == 'add_survey') {
+                                            // Add new survey to this custom category
                                             Navigator.push(
                                               context,
                                               MaterialPageRoute(
@@ -1578,49 +1357,50 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                       ),
                                     ],
                                   ),
-                                ),
-                              ],
-                            ),
 
-                            const SizedBox(height: 12),
+                                  const SizedBox(height: 12),
 
-                            // Template Cards Grid
-                            SizedBox(
-                              height: 140,
-                              child: ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: templateSurveys.length,
-                                itemBuilder: (context, index) {
-                                  final template = templateSurveys[index];
+                                  // Custom Category Survey Cards Grid
+                                  SizedBox(
+                                    height: 140,
+                                    child: ListView.builder(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: (section['surveys'] as List?)?.length ?? 0,
+                                      itemBuilder: (context, index) {
+                                        final surveys = section['surveys'] as List?;
+                                        if (surveys == null || index >= surveys.length) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        final survey = surveys[index];
 
-                                  return Container(
-                                    width: 120,
-                                    margin: const EdgeInsets.only(right: 12),
-                                    child: Card(
-                                      elevation: 1,
-                                      color: Colors.grey[200],
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: InkWell(
-                                        onTap: () {
-                                          _takeSurvey(template);
-                                        },
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(12),
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment
-                                                        .spaceBetween,
-                                                children: [
-                                                  Container(
-                                                    width: 32,
-                                                    height: 32,
+                                        return Container(
+                                          width: 120,
+                                          margin: const EdgeInsets.only(right: 12),
+                                          child: Card(
+                                            elevation: 1,
+                                            color: Colors.grey[200],
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: InkWell(
+                                              onTap: () {
+                                                _takeSurvey(survey);
+                                              },
+                                              borderRadius: BorderRadius.circular(8),
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(12),
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment
+                                                              .spaceBetween,
+                                                      children: [
+                                                        Container(
+                                                          width: 32,
+                                                          height: 32,
                                                     decoration: BoxDecoration(
                                                       color: Colors.white,
                                                       borderRadius:
@@ -1640,7 +1420,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                       switch (value) {
                                                         case 'edit':
                                                           _editSurvey(
-                                                            template,
+                                                            survey,
                                                             index,
                                                             isCustom: false,
                                                           );
@@ -1650,13 +1430,13 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                             index,
                                                             isCustom: false,
                                                             surveyName:
-                                                                template['title'],
+                                                                survey['title'],
                                                             surveyId:
-                                                                template['id'],
+                                                                survey['id'],
                                                           );
                                                           break;
                                                         case 'add_questionnaire':
-                                                          _takeSurvey(template);
+                                                          _takeSurvey(survey);
                                                           break;
                                                       }
                                                     },
@@ -1744,8 +1524,8 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                               ),
                                               const Spacer(),
                                               Text(
-                                                template['title']?.toString() ??
-                                                    'Untitled',
+                                                survey['title']?.toString() ??
+                                                    (survey['name']?.toString() ?? 'Untitled'),
                                                 style: const TextStyle(
                                                   fontSize: 12,
                                                   fontWeight: FontWeight.w600,
@@ -1756,7 +1536,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                               ),
                                               const SizedBox(height: 4),
                                               Text(
-                                                template['subtitle']
+                                                survey['description']
                                                         ?.toString() ??
                                                     'No description',
                                                 style: TextStyle(
@@ -1766,19 +1546,24 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                 maxLines: 2,
                                                 overflow: TextOverflow.ellipsis,
                                               ),
-                                            ],
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ),
+                                        );
+                                      },
                                     ),
-                                  );
-                                },
-                              ),
-                            ),
+                                  ),
 
-                            const SizedBox(height: 24),
+                                  const SizedBox(height: 24),
+                                ],
+                              );
+                            }).toList(),
 
-                            // Custom Sections (dynamically created by user)
+                            const SizedBox(height: 8),
+
+                            // Add New Section Button
                             ...customSections.map((section) {
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2329,74 +2114,6 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildDrawerItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        leading: Icon(icon, color: Colors.grey[700]),
-        title: Text(
-          title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-        ),
-        onTap: onTap,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
-  Widget _buildExpandableSection({
-    required IconData icon,
-    required String title,
-    required List<Widget> children,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: ExpansionTile(
-        leading: Icon(icon, color: Colors.grey[700]),
-        title: Text(
-          title,
-          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-        ),
-        children: children,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        collapsedShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSubMenuItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 32, vertical: 2),
-      child: ListTile(
-        leading: Icon(icon, color: Colors.grey[600], size: 20),
-        title: Text(
-          title,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w400),
-        ),
-        onTap: onTap,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
