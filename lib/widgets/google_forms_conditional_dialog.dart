@@ -117,7 +117,7 @@ class _GoogleFormsConditionalDialogState extends State<GoogleFormsConditionalDia
           Icon(Icons.call_split, color: Color(0xFF1A73E8)),
           SizedBox(width: 12),
           Text(
-            'Go to section based on answer',
+            'Question Logic',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w500,

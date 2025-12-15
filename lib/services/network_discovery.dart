@@ -49,13 +49,13 @@ class NetworkDiscovery {
       
       candidateIps.addAll(priorityIps);
       
-      // Extended scan
-      for (int i = 2; i <= 50; i++) {
+      // Extended scan (reduced range for faster discovery)
+      for (int i = 2; i <= 30; i++) {
         if (!priorityIps.contains('$subnet$i')) {
           candidateIps.add('$subnet$i');
         }
       }
-      for (int i = 101; i <= 150; i++) {
+      for (int i = 101; i <= 120; i++) {
         if (!priorityIps.contains('$subnet$i')) {
           candidateIps.add('$subnet$i');
         }
@@ -87,7 +87,7 @@ class NetworkDiscovery {
       try {
         final futures = batch.map((ip) => _tryIp(ip));
         final results = await Future.wait(futures).timeout(
-          const Duration(seconds: 8),
+          const Duration(seconds: 3),
           onTimeout: () => List.filled(batch.length, null),
         );
         
@@ -179,7 +179,7 @@ class NetworkDiscovery {
     try {
       final response = await http
           .get(Uri.parse('$baseUrl/api/surveys/'))
-          .timeout(const Duration(seconds: 3)); // Reduced timeout for faster scanning
+          .timeout(const Duration(seconds: 2)); // Reduced timeout for faster scanning
       // Accept 200 (success), 401 (unauthorized - means server exists), 403 (forbidden)
       final isReachable = response.statusCode == 200 || 
                           response.statusCode == 401 || 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../pages/home_page.dart';
 import '../utils/pages/backend_config_page.dart';
-import '../database/database_helper.dart';
 import '../services/auth_service.dart';
 import '../services/token_service.dart';
 
@@ -69,46 +68,20 @@ class _LoginPageState extends State<LoginPage> {
           
           final userMap = AuthService.currentUserMap;
           if (userMap != null) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => HomePage(employee: userMap),
-              ),
-            );
+            Navigator.pushReplacementNamed(context, '/home');
             return;
           }
         }
         
-        // Backend failed, try local database
-        final account = await DatabaseHelper.instance.universalLogin(
-          username,
-          password,
-        );
-        
+        // Backend login failed
         if (!mounted) return;
         
-        if (account != null) {
-          // Local login successful - set user and save to persistent storage
-          AuthService.setCurrentUser(account);
-          await AuthService.saveLocalUser(account);
-          // Save remember me preference
-          await TokenService.saveRememberMe(_rememberMe, username);
-          
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => HomePage(employee: account),
-            ),
-          );
-        } else {
-          // Both login attempts failed
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Invalid User ID or password'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Invalid User ID or password'),
+            backgroundColor: Colors.red,
+          ),
+        );
       } catch (e) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

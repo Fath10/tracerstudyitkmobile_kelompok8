@@ -5,7 +5,8 @@ class NetworkHelper {
   /// Check if backend is reachable
   static Future<bool> isBackendReachable() async {
     try {
-      final url = Uri.parse(ApiConfig.getUrl('/api/surveys/'));
+      final baseUrl = await ApiConfig.getBaseUrl();
+      final url = Uri.parse('$baseUrl/api/surveys/');
       final response = await http.head(url).timeout(
         const Duration(seconds: 5),
       );
@@ -21,7 +22,8 @@ class NetworkHelper {
     final startTime = DateTime.now();
     
     try {
-      final url = Uri.parse(ApiConfig.getUrl('/api/surveys/'));
+      final baseUrl = await ApiConfig.getBaseUrl();
+      final url = Uri.parse('$baseUrl/api/surveys/');
       final response = await http.get(url).timeout(
         const Duration(seconds: 10),
       );

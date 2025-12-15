@@ -4,12 +4,8 @@ import '../auth/login_page.dart';
 import '../services/auth_service.dart';
 import '../services/survey_storage.dart';
 import 'dashboard_page.dart';
-import 'employee_directory_page.dart';
 import 'questionnaire_list_page.dart';
-import 'survey_management_page.dart';
 import 'take_questionnaire_page.dart';
-import 'user_management_page.dart';
-import 'user_profile_page.dart';
 
 class HomePage extends StatefulWidget {
   final Map<String, dynamic>? employee;
@@ -211,90 +207,87 @@ class _HomePageState extends State<HomePage> {
                           AuthService.isSurveyor ||
                           AuthService.isTeamProdi)
                         _buildDrawerItem(
-                          icon: Icons.dashboard,
+                          icon: Icons.dashboard_outlined,
                           title: 'Dashboard',
                           onTap: () {
                             Navigator.pop(context);
-                            // Already on home page showing dashboard, just close drawer
+                            Navigator.pushNamed(context, '/dashboard');
                           },
                         ),
 
-                      // Only show Unit Directory for admins
-                      if (AuthService.isAdmin)
-                        _buildExpandableSection(
-                          icon: Icons.business_center_outlined,
-                          title: 'Unit Directory',
-                          children: [
-                            _buildSubMenuItem(
-                              icon: Icons.folder_outlined,
-                              title: 'User Management',
-                              onTap: () {
-                                Navigator.pop(context);
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const UserManagementPage(),
-                                  ),
-                                );
-                              },
+                      // System Administration Section (Admin only)
+                      if (AuthService.isAdmin) ...[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Text(
+                            'SYSTEM ADMINISTRATION',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[600],
+                              letterSpacing: 0.5,
                             ),
-                            _buildSubMenuItem(
-                              icon: Icons.business_outlined,
-                              title: 'Employee Directory',
-                              onTap: () {
-                                Navigator.pop(context);
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        const EmployeeDirectoryPage(),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
+                          ),
                         ),
-                      // Show Questionnaire section for employees (admin, surveyor, team_prodi)
+                        _buildDrawerItem(
+                          icon: Icons.people_outline,
+                          title: 'User Management',
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.pushNamed(context, '/employee');
+                          },
+                        ),
+                        _buildDrawerItem(
+                          icon: Icons.shield_outlined,
+                          title: 'Role Management',
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.pushNamed(context, '/roles');
+                          },
+                        ),
+                        _buildDrawerItem(
+                          icon: Icons.business_outlined,
+                          title: 'Academic Units',
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.pushNamed(context, '/unit');
+                          },
+                        ),
+                      ],
+
+                      // Tracer Activities Section (for admin, surveyor, team_prodi)
                       if (AuthService.isAdmin ||
                           AuthService.isSurveyor ||
-                          AuthService.isTeamProdi)
-                        _buildExpandableSection(
-                          icon: Icons.poll_outlined,
-                          title: 'Questionnaire',
-                          children: [
-                            _buildSubMenuItem(
-                              icon: Icons.dashboard_outlined,
-                              title: 'Survey Management',
-                              onTap: () {
-                                Navigator.pop(context);
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => SurveyManagementPage(
-                                      employee: widget.employee,
-                                    ),
-                                  ),
-                                );
-                              },
+                          AuthService.isTeamProdi) ...[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Text(
+                            'TRACER ACTIVITIES',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[600],
+                              letterSpacing: 0.5,
                             ),
-                            _buildSubMenuItem(
-                              icon: Icons.assignment_outlined,
-                              title: 'Take Questionnaire',
-                              onTap: () {
-                                Navigator.pop(context);
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => QuestionnaireListPage(
-                                      employee: widget.employee,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
+                          ),
                         ),
+                        _buildDrawerItem(
+                          icon: Icons.assignment_outlined,
+                          title: 'Survey Management',
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.pushNamed(context, '/survey');
+                          },
+                        ),
+                        _buildDrawerItem(
+                          icon: Icons.bar_chart_outlined,
+                          title: 'Response Data',
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.pushNamed(context, '/response');
+                          },
+                        ),
+                      ],
 
                       // Users (alumni) - show Take Questionnaire option
                       if (AuthService.isUser)
@@ -318,16 +311,11 @@ class _HomePageState extends State<HomePage> {
                       
                       // Profile
                       _buildDrawerItem(
-                        icon: Icons.person,
+                        icon: Icons.person_outline,
                         title: 'My Profile',
                         onTap: () {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const UserProfilePage(),
-                            ),
-                          );
+                            Navigator.pop(context);
+                          Navigator.pushNamed(context, '/profile');
                         },
                       ),
                       

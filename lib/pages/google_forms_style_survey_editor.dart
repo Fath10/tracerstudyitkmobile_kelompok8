@@ -79,7 +79,7 @@ class _GoogleFormsStyleSurveyEditorState extends State<GoogleFormsStyleSurveyEdi
       try {
         sections = sectionsData.map((s) {
           print('   Processing section: ${s.runtimeType}');
-          print('   Section keys: ${s is Map ? (s as Map).keys.toList() : 'N/A'}');
+          print('   Section keys: ${s is Map ? s.keys.toList() : 'N/A'}');
           if (s is Map && s.containsKey('questions')) {
             print('   Raw questions in section: ${s['questions']}');
             print('   Questions count in raw data: ${(s['questions'] as List?)?.length ?? 0}');
@@ -828,8 +828,8 @@ class _GoogleFormsStyleSurveyEditorState extends State<GoogleFormsStyleSurveyEdi
                         Expanded(
                           child: Text(
                             hasConditionalLogic
-                                ? 'Go to section based on answer (${(question['optionNavigations'] as List).where((n) => n['navigateTo'] != 'continue').length} rule${(question['optionNavigations'] as List).where((n) => n['navigateTo'] != 'continue').length > 1 ? 's' : ''})'
-                                : 'Go to section based on answer',
+                                ? 'Question Logic (${(question['optionNavigations'] as List).where((n) => n['navigateTo'] != 'continue').length} rule${(question['optionNavigations'] as List).where((n) => n['navigateTo'] != 'continue').length > 1 ? 's' : ''})'
+                                : 'Question Logic',
                             style: TextStyle(
                               fontSize: 13,
                               color: hasConditionalLogic ? primaryColor : Colors.grey[700],
@@ -979,15 +979,6 @@ class _GoogleFormsStyleSurveyEditorState extends State<GoogleFormsStyleSurveyEdi
               },
               icon: const Icon(Icons.add, size: 18),
               label: const Text('Add option'),
-              style: TextButton.styleFrom(foregroundColor: primaryColor),
-            ),
-            const Spacer(),
-            TextButton.icon(
-              onPressed: () {
-                // Add "Other" option
-              },
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add "Other"'),
               style: TextButton.styleFrom(foregroundColor: primaryColor),
             ),
           ],

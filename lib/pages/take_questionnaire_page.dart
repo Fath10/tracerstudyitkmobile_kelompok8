@@ -7,6 +7,7 @@ import '../services/survey_storage.dart';
 import '../services/backend_survey_service.dart';
 import '../services/auth_service.dart';
 import '../models/conditional_logic.dart';
+import '../models/survey_branch.dart';
 
 class TakeQuestionnairePage extends StatefulWidget {
   final Map<String, dynamic> survey;
@@ -46,6 +47,9 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
   
   // Track conditional logic for questions
   final Map<int, List<QuestionCondition>> _questionConditions = {};
+  
+  // Navigation history for back button support (like website)
+  final List<int> _navigationHistory = [0]; // Start with first section
 
   // Get sections for this survey
   List<Map<String, dynamic>> get _surveySections {
@@ -1067,6 +1071,86 @@ class _TakeQuestionnairePageState extends State<TakeQuestionnairePage> {
       _nimController.clear();
       _answers.clear();
     });
+  }
+
+  /// Handle navigation to next section with branch logic
+  /// Based on website implementation from Frontend/caps-fe/src/app/survey/[id]/alumni/[alumniId]/page.tsx
+  void _handleNext(int currentSectionIndex) {
+    final section = _surveySections[currentSectionIndex];
+    final sectionQuestions = List<Map<String, dynamic>>.from(section['questions'] ?? []);
+    
+    // Check for branch navigation in multiple choice questions with branches
+    int? targetSectionIndex;
+    
+    for (var question in sectionQuestions) {
+      // Only check multiple_choice questions with branches
+      if (question['type'] == 'multiple_choice' || question['question_type'] == 'multiple_choice') {
+        final branches = question['branches'];
+        if (branches != null && branches is List && branches.isNotEmpty) {
+          final questionId = question['id'];
+          final selectedAnswer = _answers[questionId];
+          
+          if (selectedAnswer != null) {
+            // Parse branches and check for match
+            try {
+              final branchList = branches.map((b) => SurveyBranch.fromJson(b)).toList();
+              
+              for (final branch in branchList) {
+                if (branch.matches(selectedAnswer.toString())) {
+                  // Find the section index by ID
+                  final targetIndex = _surveySections.indexWhere(
+                    (s) => s['id'] == branch.nextSection || s['id'].toString() == branch.nextSection.toString()
+                  );
+                  
+                  if (targetIndex != -1) {
+                    targetSectionIndex = targetIndex;
+                    debugPrint('🔀 Branch navigation: "$selectedAnswer" → Section ${branch.nextSection}');
+                    break;
+                  }
+                }
+              }
+              
+              if (targetSectionIndex != null) break;
+            } catch (e) {
+              debugPrint('⚠️ Error parsing branches: $e');
+            }
+          }
+        }
+      }
+    }
+    
+    // Navigate to target section or next sequential section
+    final nextIndex = targetSectionIndex ?? (currentSectionIndex + 1);
+    
+    if (nextIndex < _surveySections.length) {
+      setState(() {
+        _currentSectionIndex = nextIndex;
+        _navigationHistory.add(nextIndex);
+      });
+      _sectionPageController.animateToPage(
+        nextIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    } else {
+      // Last section, submit survey
+      _submitSurvey();
+    }
+  }
+
+  /// Handle back button - go to previous section in history
+  void _handleBack() {
+    if (_navigationHistory.length > 1) {
+      setState(() {
+        _navigationHistory.removeLast();
+        _currentSectionIndex = _navigationHistory.last;
+      });
+      _sectionPageController.animateToPage(
+        _currentSectionIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   Widget _buildSectionNavigator() {

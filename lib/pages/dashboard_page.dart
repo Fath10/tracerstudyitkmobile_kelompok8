@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../services/backend_survey_service.dart';
+import '../services/response_tracker.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -11,6 +12,7 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   final _surveyService = BackendSurveyService();
+  final _responseTracker = ResponseTracker();
   bool _isLoading = true;
   Map<String, dynamic> _statistics = {};
   List<Map<String, dynamic>> _responses = [];
@@ -18,6 +20,7 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
+    _responseTracker.initialize();
     _loadDashboardData();
   }
 
@@ -28,43 +31,46 @@ class _DashboardPageState extends State<DashboardPage> {
     try {
       debugPrint('📊 Loading dashboard data...');
       
-      // Load all surveys without authentication
-      final surveys = await _surveyService.getAllSurveys();
-      debugPrint('   Loaded ${surveys.length} surveys');
+      // First, try to load responses from ResponseTracker (for demo Quick Alumni Survey)
+      _responses = _responseTracker.getResponses(surveyName: 'Quick Alumni Survey 2024');
+      debugPrint('   Loaded ${_responses.length} responses from ResponseTracker');
       
-      // Try to collect responses only if surveys loaded successfully
-      _responses = [];
-      if (surveys.isNotEmpty) {
-        for (var survey in surveys) {
-          try {
-            final surveyId = survey['id'] as int;
-            final answers = await _surveyService.getSurveyAnswers(surveyId);
-            
-            // Convert answers to the expected format
-            for (var answer in answers) {
-              _responses.add({
-                'survey_id': surveyId,
-                'survey_name': survey['name'] ?? 'Unknown Survey',
-                'answers': answer['answer_text'] ?? '{}',
-                'created_at': answer['created_at'] ?? DateTime.now().toIso8601String(),
-              });
+      // Also try to load backend responses (if authenticated)
+      try {
+        final surveys = await _surveyService.getAllSurveys();
+        debugPrint('   Loaded ${surveys.length} surveys from backend');
+        
+        if (surveys.isNotEmpty) {
+          for (var survey in surveys) {
+            try {
+              final surveyId = survey['id'] as int;
+              final answers = await _surveyService.getSurveyAnswers(surveyId);
+              
+              // Convert answers to the expected format and add to responses
+              for (var answer in answers) {
+                _responses.add({
+                  'survey_id': surveyId,
+                  'survey_name': survey['name'] ?? 'Unknown Survey',
+                  'answers': answer['answer_text'] ?? '{}',
+                  'created_at': answer['created_at'] ?? DateTime.now().toIso8601String(),
+                });
+              }
+            } catch (e) {
+              debugPrint('⚠️ Skipping responses for survey (auth issue)');
+              break;
             }
-          } catch (e) {
-            // Silently skip - user not authenticated or no permission
-            debugPrint('⚠️ Skipping responses for survey (auth issue)');
-            break;
           }
         }
+      } catch (e) {
+        debugPrint('⚠️ Backend unavailable, using ResponseTracker data only');
       }
       
       if (!mounted) return;
       // Calculate statistics
       _calculateStatistics();
-      debugPrint('✅ Dashboard data loaded successfully');
+      debugPrint('✅ Dashboard data loaded successfully with ${_responses.length} total responses');
     } catch (e) {
       debugPrint('❌ Dashboard error: $e');
-      // Don't show error snackbar, just set loading to false
-      // User can see empty dashboard which is better than error spam
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -80,6 +86,9 @@ class _DashboardPageState extends State<DashboardPage> {
         'rataWaktuTunggu': 0.0,
         'relevansiPendidikan': 0.0,
         'rataPendapatan': 0.0,
+        'rataSatisfaction': 0.0,
+        'rataCompetency': 0.0,
+        'rataRecommendation': 0.0,
         'responseRate': 0.0,
       };
       return;
@@ -93,51 +102,114 @@ class _DashboardPageState extends State<DashboardPage> {
     int countRelevansi = 0;
     double totalPendapatan = 0;
     int countPendapatan = 0;
+    double totalSatisfaction = 0;
+    int countSatisfaction = 0;
+    double totalCompetency = 0;
+    int countCompetency = 0;
+    double totalRecommendation = 0;
+    int countRecommendation = 0;
 
     for (var response in _responses) {
       try {
-        final answers = jsonDecode(response['answers'] ?? '{}') as Map<String, dynamic>;
+        // Handle both JSON string and direct Map
+        Map<String, dynamic> answers;
+        if (response['answers'] is String) {
+          answers = jsonDecode(response['answers']) as Map<String, dynamic>;
+        } else {
+          answers = response['answers'] as Map<String, dynamic>;
+        }
         
-        // Status Alumni (f8)
+        // Quick Alumni Survey fields (q1-q10)
+        // Q1: Employment status
+        final employment = answers['q1']?.toString() ?? '';
+        if (employment.contains('Bekerja') || employment.contains('Wiraswasta')) {
+          jumlahBekerja++;
+        }
+        
+        // Q2: Education relevance
+        final relevance = answers['q2']?.toString() ?? '';
+        if (relevance.contains('Sangat Relevan') || relevance.contains('Relevan')) {
+          relevanPendidikan++;
+        }
+        if (relevance.isNotEmpty) {
+          countRelevansi++;
+        }
+        
+        // Q4: Satisfaction rating
+        final satisfaction = answers['q4'];
+        if (satisfaction != null) {
+          final rating = satisfaction is int ? satisfaction.toDouble() : double.tryParse(satisfaction.toString());
+          if (rating != null) {
+            totalSatisfaction += rating;
+            countSatisfaction++;
+          }
+        }
+        
+        // Q6: Job search duration
+        final jobSearch = answers['q6']?.toString() ?? '';
+        if (jobSearch.contains('Kurang dari 3 bulan')) {
+          totalWaktuTunggu += 2.0;
+          countWaktuTunggu++;
+        } else if (jobSearch.contains('3-6 bulan')) {
+          totalWaktuTunggu += 4.5;
+          countWaktuTunggu++;
+        } else if (jobSearch.contains('6-12 bulan')) {
+          totalWaktuTunggu += 9.0;
+          countWaktuTunggu++;
+        } else if (jobSearch.contains('Lebih dari 12 bulan')) {
+          totalWaktuTunggu += 15.0;
+          countWaktuTunggu++;
+        }
+        
+        // Q7: Competency rating
+        final competency = answers['q7'];
+        if (competency != null) {
+          final rating = competency is int ? competency.toDouble() : double.tryParse(competency.toString());
+          if (rating != null) {
+            totalCompetency += rating;
+            countCompetency++;
+          }
+        }
+        
+        // Q10: Recommendation rating
+        final recommendation = answers['q10'];
+        if (recommendation != null) {
+          final rating = recommendation is int ? recommendation.toDouble() : double.tryParse(recommendation.toString());
+          if (rating != null) {
+            totalRecommendation += rating;
+            countRecommendation++;
+          }
+        }
+        
+        // Legacy fields (f8, f14, f502, f505) - for backward compatibility
         final statusAlumni = answers['8']?.toString() ?? '';
         if (statusAlumni.contains('Bekerja') || statusAlumni.contains('bekerja')) {
           jumlahBekerja++;
         }
         
-        // Waktu Tunggu Kerja (f502)
-        final waktuTunggu = answers['502']?.toString() ?? '';
-        if (waktuTunggu.isNotEmpty) {
-          try {
-            final bulan = double.tryParse(waktuTunggu.replaceAll(RegExp(r'[^0-9.]'), ''));
-            if (bulan != null) {
-              totalWaktuTunggu += bulan;
-              countWaktuTunggu++;
-            }
-          } catch (e) {
-            debugPrint('Error parsing waktu tunggu: $e');
-          }
-        }
-        
-        // Relevansi Bidang Studi (f14)
         final relevansi = answers['14']?.toString() ?? '';
-        if (relevansi.contains('Sangat erat') || relevansi.contains('Erat') || relevansi.contains('sangat erat') || relevansi.contains('erat')) {
+        if (relevansi.contains('Sangat erat') || relevansi.contains('Erat')) {
           relevanPendidikan++;
         }
         if (relevansi.isNotEmpty) {
           countRelevansi++;
         }
         
-        // Pendapatan (f505)
+        final waktuTunggu = answers['502']?.toString() ?? '';
+        if (waktuTunggu.isNotEmpty) {
+          final bulan = double.tryParse(waktuTunggu.replaceAll(RegExp(r'[^0-9.]'), ''));
+          if (bulan != null) {
+            totalWaktuTunggu += bulan;
+            countWaktuTunggu++;
+          }
+        }
+        
         final pendapatan = answers['505']?.toString() ?? '';
         if (pendapatan.isNotEmpty) {
-          try {
-            final nilai = double.tryParse(pendapatan.replaceAll(RegExp(r'[^0-9.]'), ''));
-            if (nilai != null) {
-              totalPendapatan += nilai;
-              countPendapatan++;
-            }
-          } catch (e) {
-            debugPrint('Error parsing pendapatan: $e');
+          final nilai = double.tryParse(pendapatan.replaceAll(RegExp(r'[^0-9.]'), ''));
+          if (nilai != null) {
+            totalPendapatan += nilai;
+            countPendapatan++;
           }
         }
       } catch (e) {
@@ -151,7 +223,10 @@ class _DashboardPageState extends State<DashboardPage> {
       'rataWaktuTunggu': countWaktuTunggu > 0 ? (totalWaktuTunggu / countWaktuTunggu) : 0.0,
       'relevansiPendidikan': countRelevansi > 0 ? (relevanPendidikan / countRelevansi * 100) : 0.0,
       'rataPendapatan': countPendapatan > 0 ? (totalPendapatan / countPendapatan) : 0.0,
-      'responseRate': 100.0, // This should be calculated based on total target respondents
+      'rataSatisfaction': countSatisfaction > 0 ? (totalSatisfaction / countSatisfaction) : 0.0,
+      'rataCompetency': countCompetency > 0 ? (totalCompetency / countCompetency) : 0.0,
+      'rataRecommendation': countRecommendation > 0 ? (totalRecommendation / countRecommendation) : 0.0,
+      'responseRate': 100.0,
     };
   }
 
@@ -217,27 +292,27 @@ class _DashboardPageState extends State<DashboardPage> {
               Colors.green,
             ),
             _buildKPICard(
-              'Rata-rata Waktu Tunggu',
-              '${_statistics['rataWaktuTunggu']?.toStringAsFixed(1) ?? '0.0'} bulan',
-              Icons.access_time,
-              Colors.orange,
-            ),
-            _buildKPICard(
               '% Relevansi Pendidikan',
               '${_statistics['relevansiPendidikan']?.toStringAsFixed(1) ?? '0.0'}%',
               Icons.school,
               Colors.purple,
             ),
             _buildKPICard(
-              'Rata-rata Pendapatan',
-              'Rp ${_formatCurrency(_statistics['rataPendapatan'] ?? 0.0)}',
-              Icons.attach_money,
-              Colors.teal,
+              'Kepuasan (1-5)',
+              '${_statistics['rataSatisfaction']?.toStringAsFixed(1) ?? '0.0'}',
+              Icons.sentiment_satisfied_alt,
+              Colors.amber,
             ),
             _buildKPICard(
-              '% Response Rate',
-              '${_statistics['responseRate']?.toStringAsFixed(1) ?? '0.0'}%',
-              Icons.rate_review,
+              'Kompetensi (1-5)',
+              '${_statistics['rataCompetency']?.toStringAsFixed(1) ?? '0.0'}',
+              Icons.star,
+              Colors.deepOrange,
+            ),
+            _buildKPICard(
+              'Rekomendasi (1-5)',
+              '${_statistics['rataRecommendation']?.toStringAsFixed(1) ?? '0.0'}',
+              Icons.recommend,
               Colors.indigo,
             ),
           ],
@@ -317,6 +392,13 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         ),
         const SizedBox(height: 16),
+        
+        // Quick Alumni Survey 2024 (NEW)
+        if (_responses.isNotEmpty)
+          _buildQuickSurveySection(),
+        
+        if (_responses.isNotEmpty)
+          const SizedBox(height: 16),
         
         // Status dan Kondisi Kerja Alumni
         _buildSectionCard(
@@ -532,4 +614,265 @@ class _DashboardPageState extends State<DashboardPage> {
       return amount.toStringAsFixed(0);
     }
   }
-}
+  Widget _buildQuickSurveySection() {
+    return _buildSectionCard(
+      '📊 Quick Alumni Survey 2024',
+      [
+        _buildSimpleBarChart(
+          'Status Pekerjaan',
+          _responseTracker.getChartData('q1'),
+          Colors.blue,
+        ),
+        const SizedBox(height: 16),
+        _buildSimpleBarChart(
+          'Relevansi Pendidikan',
+          _responseTracker.getChartData('q2'),
+          Colors.green,
+        ),
+        const SizedBox(height: 16),
+        _buildSimpleBarChart(
+          'Rentang Pendapatan',
+          _responseTracker.getChartData('q3'),
+          Colors.amber,
+        ),
+        const SizedBox(height: 16),
+        _buildRatingChart(
+          'Kepuasan Alumni',
+          'q4',
+          Colors.purple,
+        ),
+        const SizedBox(height: 16),
+        _buildRatingChart(
+          'Kompetensi yang Diperoleh',
+          'q7',
+          Colors.deepOrange,
+        ),
+        const SizedBox(height: 16),
+        _buildRatingChart(
+          'Rekomendasi Institusi',
+          'q10',
+          Colors.indigo,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSimpleBarChart(String title, Map<String, int> data, Color color) {
+    if (data.isEmpty) {
+      return _buildChartPlaceholder(title, 'No Data');
+    }
+
+    // Find max value for scaling
+    final maxValue = data.values.reduce((a, b) => a > b ? a : b);
+    final total = data.values.reduce((a, b) => a + b);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...data.entries.map((entry) {
+          final percentage = (entry.value / total * 100);
+          final barWidth = (entry.value / maxValue);
+          
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        entry.key,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 5,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Stack(
+                              children: [
+                                Container(
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[200],
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                                FractionallySizedBox(
+                                  widthFactor: barWidth,
+                                  child: Container(
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      color: color,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            width: 70,
+                            child: Text(
+                              '${entry.value} (${percentage.toStringAsFixed(0)}%)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: color,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildRatingChart(String title, String questionId, Color color) {
+    final data = _responseTracker.getChartData(questionId);
+    if (data.isEmpty) {
+      return _buildChartPlaceholder(title, 'No Data');
+    }
+
+    // Convert to rating scale 1-5
+    Map<int, int> ratingCounts = {};
+    double totalRating = 0;
+    int totalCount = 0;
+
+    data.forEach((key, count) {
+      final rating = int.tryParse(key);
+      if (rating != null && rating >= 1 && rating <= 5) {
+        ratingCounts[rating] = (ratingCounts[rating] ?? 0) + count;
+        totalRating += rating * count;
+        totalCount += count;
+      }
+    });
+
+    final average = totalCount > 0 ? totalRating / totalCount : 0.0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.star, size: 14, color: color),
+                  const SizedBox(width: 4),
+                  Text(
+                    average.toStringAsFixed(1),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: List.generate(5, (index) {
+            final rating = index + 1;
+            final count = ratingCounts[rating] ?? 0;
+            final maxCount = ratingCounts.values.isNotEmpty 
+                ? ratingCounts.values.reduce((a, b) => a > b ? a : b) 
+                : 1;
+            final heightFactor = maxCount > 0 ? count / maxCount : 0.0;
+
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: Column(
+                  children: [
+                    Text(
+                      count.toString(),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      height: 80,
+                      alignment: Alignment.bottomCenter,
+                      child: FractionallySizedBox(
+                        heightFactor: heightFactor,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: color,
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(4),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.star, size: 12, color: Colors.grey[600]),
+                        const SizedBox(width: 2),
+                        Text(
+                          rating.toString(),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }}

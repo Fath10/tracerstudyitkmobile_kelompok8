@@ -223,6 +223,108 @@ class SurveyStorage {
       },
     ];
   }
+
+  // Quick Survey Template - 10 questions for rapid response tracking
+  static List<Map<String, dynamic>> _getQuickSurveyQuestions() {
+    return [
+      {
+        'id': 'q1',
+        'field': 'employment_status',
+        'type': 'multiple_choice',
+        'question': '1. Status pekerjaan Anda saat ini?',
+        'options': ['Bekerja', 'Wiraswasta', 'Melanjutkan Pendidikan', 'Mencari Kerja'],
+        'chartType': 'pie',
+        'category': 'employment',
+      },
+      {
+        'id': 'q2',
+        'field': 'job_relevance',
+        'type': 'rating',
+        'question': '2. Seberapa relevan pekerjaan Anda dengan bidang studi?',
+        'scale': 5,
+        'labels': ['Tidak Relevan', 'Sangat Relevan'],
+        'chartType': 'bar',
+        'category': 'relevance',
+      },
+      {
+        'id': 'q3',
+        'field': 'income_range',
+        'type': 'multiple_choice',
+        'question': '3. Rentang penghasilan bulanan Anda?',
+        'options': ['< 3 juta', '3-5 juta', '5-10 juta', '> 10 juta'],
+        'chartType': 'bar',
+        'category': 'income',
+      },
+      {
+        'id': 'q4',
+        'field': 'job_satisfaction',
+        'type': 'rating',
+        'question': '4. Tingkat kepuasan Anda terhadap pekerjaan saat ini?',
+        'scale': 5,
+        'labels': ['Sangat Tidak Puas', 'Sangat Puas'],
+        'chartType': 'bar',
+        'category': 'satisfaction',
+      },
+      {
+        'id': 'q5',
+        'field': 'study_usefulness',
+        'type': 'rating',
+        'question': '5. Seberapa berguna pendidikan ITK untuk karir Anda?',
+        'scale': 5,
+        'labels': ['Tidak Berguna', 'Sangat Berguna'],
+        'chartType': 'bar',
+        'category': 'education_value',
+      },
+      {
+        'id': 'q6',
+        'field': 'job_search_duration',
+        'type': 'multiple_choice',
+        'question': '6. Berapa lama waktu mencari kerja setelah lulus?',
+        'options': ['< 3 bulan', '3-6 bulan', '6-12 bulan', '> 12 bulan'],
+        'chartType': 'pie',
+        'category': 'job_search',
+      },
+      {
+        'id': 'q7',
+        'field': 'skill_competency',
+        'type': 'rating',
+        'question': '7. Tingkat kompetensi keahlian bidang ilmu Anda?',
+        'scale': 5,
+        'labels': ['Sangat Rendah', 'Sangat Tinggi'],
+        'chartType': 'bar',
+        'category': 'competency',
+      },
+      {
+        'id': 'q8',
+        'field': 'soft_skills',
+        'type': 'rating',
+        'question': '8. Kemampuan komunikasi dan teamwork Anda?',
+        'scale': 5,
+        'labels': ['Sangat Rendah', 'Sangat Tinggi'],
+        'chartType': 'bar',
+        'category': 'soft_skills',
+      },
+      {
+        'id': 'q9',
+        'field': 'career_plan',
+        'type': 'multiple_choice',
+        'question': '9. Rencana karir 2 tahun ke depan?',
+        'options': ['Tetap di posisi saat ini', 'Naik jabatan', 'Pindah perusahaan', 'Wiraswasta'],
+        'chartType': 'pie',
+        'category': 'career_plan',
+      },
+      {
+        'id': 'q10',
+        'field': 'recommendation',
+        'type': 'rating',
+        'question': '10. Seberapa besar Anda merekomendasikan ITK ke orang lain?',
+        'scale': 5,
+        'labels': ['Tidak Merekomendasikan', 'Sangat Merekomendasikan'],
+        'chartType': 'bar',
+        'category': 'recommendation',
+      },
+    ];
+  }
   
   static List<Map<String, dynamic>> getAllAvailableSurveys() {
     // Initialize default surveys once
@@ -241,6 +343,15 @@ class SurveyStorage {
     // Initialize template surveys once
     if (_templateSurveys.isEmpty) {
       _templateSurveys.addAll([
+        {
+          'name': 'Quick Alumni Survey 2024',
+          'title': 'Quick Alumni Survey 2024',
+          'description': 'Quick 10-question survey for tracking alumni career progress',
+          'subtitle': 'Quick career tracking survey',
+          'isTemplate': true,
+          'isLive': true, // Live to track responses
+          'questions': _getQuickSurveyQuestions(),
+        },
         {
           'name': 'Informatics Alumni Survey',
           'title': 'Informatics Alumni Survey',

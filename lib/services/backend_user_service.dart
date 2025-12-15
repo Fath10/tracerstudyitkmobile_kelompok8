@@ -172,6 +172,22 @@ class BackendUserService {
     }
   }
 
+  // Change password
+  Future<void> changePassword(String oldPassword, String newPassword) async {
+    try {
+      await _apiService.post(
+        '/accounts/change-password/',
+        {
+          'old_password': oldPassword,
+          'new_password': newPassword,
+        },
+        includeAuth: true,
+      );
+    } catch (e) {
+      throw Exception('Failed to change password: $e');
+    }
+  }
+
   // Delete user
   Future<void> deleteUser(String id) async {
     try {

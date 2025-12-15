@@ -30,8 +30,8 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
   bool _isLoadingSurveys = false;
   bool _hasShownBackendError = false;
 
-  // Survey data lists
-  List<Map<String, dynamic>> customSurveys = SurveyStorage.customSurveys;
+  // Survey data lists - ALL from backend now
+  List<Map<String, dynamic>> customSurveys = [];
   List<Map<String, dynamic>> templateSurveys = [];
 
   // Category management
@@ -90,60 +90,57 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
     try {
       print('📋 Loading surveys from backend...');
 
-      // Load from backend first
+      // Load from backend
       final backendSurveys = await _surveyService.getAllSurveys();
       print('   Fetched ${backendSurveys.length} surveys from backend');
-
-      // Also load local storage surveys (fallback)
+      
+      // Load template surveys from SurveyStorage
       final allSurveys = SurveyStorage.getAllAvailableSurveys();
-      print('   Local storage has ${allSurveys.length} surveys');
+      final templates = allSurveys.where((s) => s['isTemplate'] == true).toList();
+      print('   Loaded ${templates.length} template surveys from SurveyStorage');
 
       if (!mounted) return;
 
       setState(() {
-        // Combine backend and local surveys
-        templateSurveys = [
-          ...backendSurveys,
-          ...allSurveys.where((s) => s['isTemplate'] == true),
-        ];
-        customSurveys = SurveyStorage.customSurveys;
+        // Combine backend surveys and templates
+        customSurveys = backendSurveys.map((s) => Map<String, dynamic>.from(s as Map)).toList();
+        
+        // Add templates to customSurveys if they have isLive = true
+        for (var template in templates) {
+          if (template['isLive'] == true) {
+            customSurveys.add({
+              ...template,
+              'is_active': true, // Mark as active for live questionnaires
+              'isTemplate': true,
+            });
+          }
+        }
+        
+        print('   Total surveys (backend + templates): ${customSurveys.length}');
+        templateSurveys = [];
         _isLoadingSurveys = false;
       });
 
-      print('✅ Loaded ${templateSurveys.length} total surveys');
+      print('✅ Loaded ${customSurveys.length} backend surveys');
     } catch (e) {
-      print('⚠️ Error loading surveys: $e');
+      print('❌ Error loading surveys: $e');
 
       if (!mounted) return;
 
-      // Fallback to local storage
-      final allSurveys = SurveyStorage.getAllAvailableSurveys();
       setState(() {
-        templateSurveys = allSurveys
-            .where((s) => s['isTemplate'] == true)
-            .toList();
-        customSurveys = SurveyStorage.customSurveys;
+        customSurveys = [];
+        templateSurveys = [];
         _isLoadingSurveys = false;
       });
 
-      // Only show error once to avoid spam
+      // Show error message
       if (!_hasShownBackendError) {
         _hasShownBackendError = true;
 
-        // Determine error message based on error type
-        String errorMessage;
-        if (e.toString().contains('SocketException') ||
-            e.toString().contains('Connection') ||
-            e.toString().contains('http://')) {
-          errorMessage = 'Backend offline. Using local surveys only.';
-        } else {
-          errorMessage = 'Using local surveys only.';
-        }
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: Colors.orange,
+            content: Text('Failed to load surveys from backend: $e'),
+            backgroundColor: Colors.red,
             duration: const Duration(seconds: 4),
             action: SnackBarAction(
               label: 'Retry',
@@ -840,11 +837,9 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                             // Active Questionnaires Grid (only show live surveys - both default and custom)
                             Builder(
                               builder: (context) {
-                                // Combine default surveys and custom surveys, then filter for live ones
-                                final allSurveys =
-                                    SurveyStorage.getAllAvailableSurveys();
-                                final liveSurveys = allSurveys
-                                    .where((survey) => survey['isLive'] == true)
+                                // Show backend surveys that are active (is_active == true)
+                                final liveSurveys = customSurveys
+                                    .where((survey) => survey['is_active'] == true)
                                     .toList();
 
                                 if (liveSurveys.isEmpty) {
@@ -916,28 +911,37 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                           ),
                                           child: InkWell(
                                             onTap: () async {
-                                              // Load full survey with sections and questions
+                                              // Navigate to Take Questionnaire Page
                                               print(
                                                 'DEBUG [LIVE SURVEY]: Opening survey: ${survey['title'] ?? survey['name']}',
                                               );
                                               
-                                              // Check if survey has backend ID
-                                              if (survey['id'] == null) {
-                                                // Local survey without backend ID - open directly
-                                                final result = await Navigator.push(
+                                              // For template surveys, navigate directly to take questionnaire
+                                              if (survey['isTemplate'] == true) {
+                                                Navigator.push(
                                                   context,
                                                   MaterialPageRoute(
-                                                    builder: (context) =>
-                                                        GoogleFormsStyleSurveyEditor(
-                                                          survey: survey,
-                                                        ),
+                                                    builder: (context) => TakeQuestionnairePage(
+                                                      survey: survey,
+                                                      employee: widget.employee,
+                                                    ),
                                                   ),
                                                 );
-                                                
-                                                if (result != null) {
-                                                  _loadSurveys();
-                                                }
-                                                setState(() {});
+                                                return;
+                                              }
+                                              
+                                              // Check if survey has backend ID
+                                              if (survey['id'] == null) {
+                                                // Local survey without backend ID - navigate to take questionnaire
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) => TakeQuestionnairePage(
+                                                      survey: survey,
+                                                      employee: widget.employee,
+                                                    ),
+                                                  ),
+                                                );
                                                 return;
                                               }
                                               
@@ -953,69 +957,22 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                               try {
                                                 // Fetch full survey with sections and questions from backend
                                                 final fullSurvey = await _surveyService.getSurveyById(survey['id']);
-                                print('📋 Full survey received from backend:');
-                                print('   Keys: ${fullSurvey.keys.toList()}');
-                                print('   Has sections: ${fullSurvey.containsKey('sections')}');
-                                if (fullSurvey.containsKey('sections')) {
-                                  print('   Sections count: ${(fullSurvey['sections'] as List).length}');
-                                  print('   First section: ${(fullSurvey['sections'] as List).first}');
-                                }
-                                
-                                // Close loading indicator
-                                if (mounted) Navigator.pop(context);
-                                
-                                final surveyToPass = {
-                                  ...fullSurvey,
-                                  'name': fullSurvey['title'],
-                                  'isLive': fullSurvey['is_active'] ?? false,
-                                };
-                                print('📋 Survey data being passed to editor:');
-                                print('   Keys: ${surveyToPass.keys.toList()}');
-                                print('   Sections: ${surveyToPass['sections']}');
-                                
-                                // Open editor with full survey data
-                                final result = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        GoogleFormsStyleSurveyEditor(
-                                          survey: surveyToPass,
-                                        ),
-                                  ),
-                                );
+                                                
+                                                // Close loading indicator
+                                                if (mounted) Navigator.pop(context);
+                                                
+                                                // Navigate to take questionnaire page
+                                                Navigator.push(
+                                                  context,
+                                                  MaterialPageRoute(
+                                                    builder: (context) => TakeQuestionnairePage(
+                                                      survey: fullSurvey,
+                                                      employee: widget.employee,
+                                                    ),
+                                                  ),
+                                                );
 
-                                print(
-                                  'DEBUG [LIVE SURVEY]: Editor closed, result is null: ${result == null}',
-                                );
-
-                                if (result != null) {
-                                  print(
-                                    'DEBUG [LIVE SURVEY]: Received result with keys: ${result.keys}',
-                                  );
-                                  print(
-                                    'DEBUG [LIVE SURVEY]: Result has sections: ${result['sections'] != null}',
-                                  );
-
-                                  // Update the survey in storage based on its type
-                                  if (result['isDefault'] ==
-                                      true) {
-                                    print(
-                                      'DEBUG [LIVE SURVEY]: Updating default survey',
-                                    );
-                                    SurveyStorage.updateDefaultSurvey(
-                                      result['name'],
-                                      result,
-                                    );
-                                  } else {
-                                    print(
-                                      'DEBUG [LIVE SURVEY]: ERROR - Live survey is not a default survey!',
-                                    );
-                                  }
-
-                                  _loadSurveys(); // Reload surveys to get updated data
-                                }
-
-                                setState(() {});
+                                                setState(() {});
                               } catch (e) {
                                                 // Close loading indicator if still open
                                                 if (mounted && Navigator.canPop(context)) {
@@ -1280,7 +1237,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                               index,
                                                               isCustom: true,
                                                               surveyName:
-                                                                  survey['name'],
+                                                                  survey['title'] ?? survey['name'] ?? 'Untitled',
                                                               surveyId:
                                                                   survey['id'],
                                                             );
@@ -1349,7 +1306,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                 ),
                                                 const Spacer(),
                                                 Text(
-                                                  survey['name'] as String,
+                                                  (survey['title'] ?? survey['name'] ?? 'Untitled') as String,
                                                   style: const TextStyle(
                                                     fontSize: 12,
                                                     fontWeight: FontWeight.w600,
@@ -1361,8 +1318,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
-                                                  survey['description']
-                                                      as String,
+                                                  (survey['description'] ?? '') as String,
                                                   style: TextStyle(
                                                     fontSize: 10,
                                                     color: Colors.grey[600],
@@ -2599,42 +2555,9 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
         }
       }
 
-      // Update local storage as fallback
-      if (isCustom) {
-        print(
-          'DEBUG [SURVEY MANAGEMENT]: Updating custom survey at index $index',
-        );
-        SurveyStorage.updateSurvey(index, result);
-        setState(() {
-          customSurveys = SurveyStorage.customSurveys;
-        });
-        print(
-          'DEBUG [SURVEY MANAGEMENT]: Custom survey updated. New survey: ${customSurveys[index]}',
-        );
-      } else if (result['isDefault'] == true) {
-        // For default surveys, update in storage
-        print(
-          'DEBUG [SURVEY MANAGEMENT]: Updating default survey "${result['name']}"',
-        );
-        SurveyStorage.updateDefaultSurvey(result['name'], result);
-        print(
-          'DEBUG [SURVEY MANAGEMENT]: Default survey updated in storage, reloading surveys...',
-        );
-        _loadSurveys(); // Reload to get updated data from storage
-      } else {
-        // For template surveys, update in storage (not just local)
-        print(
-          'DEBUG [SURVEY MANAGEMENT]: Updating template survey "${survey['title'] ?? survey['name']}"',
-        );
-        SurveyStorage.updateTemplateSurvey(
-          survey['title'] ?? survey['name'],
-          result,
-        );
-        print(
-          'DEBUG [SURVEY MANAGEMENT]: Template survey updated in storage, reloading surveys...',
-        );
-        _loadSurveys(); // Reload to get updated data from storage
-      }
+      // Reload from backend to get updated data
+      print('DEBUG [SURVEY MANAGEMENT]: Survey updated, reloading from backend...');
+      _loadSurveys();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2690,19 +2613,8 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                   }
                 }
 
-                // Remove from local storage
-                if (isCustom) {
-                  SurveyStorage.removeSurvey(index);
-                } else {
-                  // Template surveys
-                  templateSurveys.removeAt(index);
-                }
-
-                setState(() {
-                  if (isCustom) {
-                    customSurveys = SurveyStorage.customSurveys;
-                  }
-                });
+                // Reload from backend
+                _loadSurveys();
 
                 Navigator.of(context).pop();
 
@@ -2785,7 +2697,7 @@ class _SurveyManagementPageState extends State<SurveyManagementPage> {
                           'title': 'Sample Survey',
                           'subtitle':
                               'Template questionnaire for ${sectionNameController.text.trim()}',
-                          'questions': SurveyStorage.getDefaultQuestions(),
+                          'questions': [],
                           'isTemplate': true,
                           'isLive': false,
                         },

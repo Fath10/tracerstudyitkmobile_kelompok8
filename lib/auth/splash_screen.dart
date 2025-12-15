@@ -1,7 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'login_page.dart';
-import '../pages/home_page.dart';
 import '../services/auth_service.dart';
 import '../config/api_config.dart';
 
@@ -61,23 +59,11 @@ class _SplashScreenState extends State<SplashScreen> {
 
     // Check if user is already logged in
     if (AuthService.isLoggedIn && AuthService.currentUser != null) {
-      // User is logged in, navigate to home
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => HomePage(
-            employee: AuthService.currentUserMap ?? {},
-          ),
-        ),
-      );
+      // User is logged in, navigate to home using named route
+      Navigator.pushReplacementNamed(context, '/home');
     } else {
-      // User is not logged in, navigate to login page
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const LoginPage(),
-        ),
-      );
+      // User is not logged in, navigate to login page using named route
+      Navigator.pushReplacementNamed(context, '/login');
     }
   }
 
