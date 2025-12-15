@@ -1,17 +1,10 @@
 import 'package:flutter/material.dart';
-import 'employee_edit_page.dart';
-import 'user_management_page.dart';
-import '../auth/login_page.dart';
-import 'home_page.dart';
-import 'survey_management_page.dart';
-import 'take_questionnaire_page.dart';
-import 'questionnaire_list_page.dart';
-import 'user_profile_page.dart';
-import '../services/auth_service.dart';
-import '../services/backend_user_service.dart';
-import '../services/survey_storage.dart';
+
 import '../models/user_model.dart';
+import '../services/backend_user_service.dart';
 import '../widgets/standard_drawer.dart';
+import 'employee_edit_page.dart';
+import 'home_page.dart';
 
 class EmployeeDirectoryPage extends StatefulWidget {
   const EmployeeDirectoryPage({super.key});
@@ -49,8 +42,12 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
 
     try {
       // Load employees (admin/surveyor/team_prodi) from backend
-      final usersData = await _backendUserService.getAllUsers(employeesOnly: true);
-      print('📱 EmployeeDirectory: Got ${usersData.length} employees from backend');
+      final usersData = await _backendUserService.getAllUsers(
+        employeesOnly: true,
+      );
+      print(
+        '📱 EmployeeDirectory: Got ${usersData.length} employees from backend',
+      );
 
       if (!mounted) return;
 
@@ -213,7 +210,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     var filtered = employees;
 
     // Backend already filters for employees (admin/surveyor/team_prodi), no need to filter again
-    
+
     // Apply search filter
     if (searchQuery.isNotEmpty) {
       filtered = filtered.where((employee) {
@@ -229,16 +226,18 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
       filtered = filtered.where((employee) {
         final role = employee.role?.name ?? '';
         final filterRole = selectedAccessFilter!;
-        
+
         // Match filter to role (case-insensitive contains check)
         if (filterRole.toLowerCase().contains('admin')) {
           return role.toLowerCase().contains('admin');
-        } else if (filterRole.toLowerCase().contains('surveyor') || filterRole.toLowerCase().contains('tracer')) {
-          return role.toLowerCase().contains('surveyor') || role.toLowerCase().contains('tracer');
+        } else if (filterRole.toLowerCase().contains('surveyor') ||
+            filterRole.toLowerCase().contains('tracer')) {
+          return role.toLowerCase().contains('surveyor') ||
+              role.toLowerCase().contains('tracer');
         } else if (filterRole.toLowerCase().contains('prodi')) {
           return role.toLowerCase().contains('prodi');
         }
-        
+
         // Exact match fallback
         return role.toLowerCase() == filterRole.toLowerCase();
       }).toList();
@@ -270,7 +269,7 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     );
 
     print('📱 EmployeeDirectory: Returned from edit with result: $result');
-    
+
     // Reload if changes were made
     if (result == true) {
       print('📱 EmployeeDirectory: Reloading employees...');
@@ -560,25 +559,25 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      // Add Employee Button (+ Icon)
+                      // Add Employee Button
                       Container(
                         decoration: BoxDecoration(
                           color: const Color(0xFF0066CC),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: IconButton(
-                          onPressed: () => _navigateToEmployeeEdit(),
                           icon: const Icon(
-                            Icons.add,
+                            Icons.person_add,
                             color: Colors.white,
                             size: 20,
                           ),
-                          tooltip: 'Add Employee',
+                          onPressed: () => _navigateToEmployeeEdit(),
                           padding: const EdgeInsets.all(8),
                           constraints: const BoxConstraints(
                             minWidth: 36,
                             minHeight: 36,
                           ),
+                          tooltip: 'Add User',
                         ),
                       ),
                       const SizedBox(width: 4),
@@ -620,77 +619,12 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                 Expanded(
                   child: isLoading
                       ? const Center(child: CircularProgressIndicator())
-                      : SingleChildScrollView(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Container(
-                            margin: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade300),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Column(
-                              children: [
-                                // Table Header
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.grey.shade100,
-                                    border: Border(
-                                      bottom: BorderSide(
-                                        color: Colors.grey.shade300,
-                                      ),
-                                    ),
-                                  ),
-                                  child: Table(
-                                    columnWidths: const {
-                                      0: FixedColumnWidth(35),
-                                      1: FlexColumnWidth(2.2),
-                                      2: FlexColumnWidth(1.5),
-                                      3: FlexColumnWidth(1.2),
-                                      4: FixedColumnWidth(80),
-                                    },
-                                    children: [
-                                      TableRow(
-                                        children: [
-                                          _buildHeaderCell(
-                                            '',
-                                            isCheckbox: true,
-                                          ),
-                                          _buildHeaderCell('Name'),
-                                          _buildHeaderCell('Email'),
-                                          _buildHeaderCell('Access'),
-                                          _buildHeaderCell('Actions'),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                // Table Rows
-                                if (paginatedEmployees.isEmpty)
-                                  Container(
-                                    padding: const EdgeInsets.all(40),
-                                    child: const Center(
-                                      child: Text(
-                                        'No employees found',
-                                        style: TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                    ),
-                                  )
-                                else
-                                  ...paginatedEmployees.map(
-                                    (employee) => _buildEmployeeRow(employee),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
+                      : _buildMobileView(),
                 ),
                 // Pagination Footer
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
+                    horizontal: 8,
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
@@ -699,106 +633,95 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
                       top: BorderSide(color: Colors.grey.shade300),
                     ),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('Show ', style: TextStyle(fontSize: 12)),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade300),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: DropdownButton<int>(
-                              value: itemsPerPage,
-                              underline: const SizedBox(),
-                              isDense: true,
-                              items: [1, 5, 10, 25, 50, 100].map((int value) {
-                                return DropdownMenuItem<int>(
-                                  value: value,
-                                  child: Text(
-                                    value.toString(),
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                );
-                              }).toList(),
-                              onChanged: (int? newValue) {
-                                if (newValue != null) {
-                                  setState(() {
-                                    itemsPerPage = newValue;
-                                    currentPage = 1; // Reset to first page
-                                  });
-                                }
-                              },
-                            ),
-                          ),
-                          const Text(
-                            ' entries',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                        ],
-                      ),
-                      Flexible(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                '${((currentPage - 1) * itemsPerPage) + 1} - ${(currentPage * itemsPerPage).clamp(0, filteredEmployees.length)} of ${filteredEmployees.length}',
-                                style: const TextStyle(fontSize: 12),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              icon: const Icon(Icons.chevron_left),
-                              onPressed: currentPage > 1
-                                  ? () => setState(() => currentPage--)
-                                  : null,
-                              iconSize: 18,
-                              constraints: const BoxConstraints(
-                                minWidth: 32,
-                                minHeight: 32,
-                              ),
-                              padding: const EdgeInsets.all(4),
-                            ),
-                            Text(
-                              '$currentPage / $totalPages',
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.chevron_right),
-                              onPressed: currentPage < totalPages
-                                  ? () => setState(() => currentPage++)
-                                  : null,
-                              iconSize: 18,
-                              constraints: const BoxConstraints(
-                                minWidth: 32,
-                                minHeight: 32,
-                              ),
-                              padding: const EdgeInsets.all(4),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: _buildMobilePagination(),
                 ),
               ],
             ),
           ),
-        ), // Close SafeArea
-      ), // Close RefreshIndicator
-    ); // Close Scaffold
+        ),
+      ),
+    );
   }
 
-  Widget _buildHeaderCell(String text, {bool isCheckbox = false}) {
+  // Mobile View - Table layout with horizontal scroll
+  Widget _buildMobileView() {
+    if (paginatedEmployees.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(40),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.people_outline, size: 64, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              const Text(
+                'No employees found',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Container(
+        margin: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Column(
+          children: [
+            // Table Header
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+              ),
+              child: Row(
+                children: [
+                  _buildTableHeaderCell('', isCheckbox: true),
+                  _buildTableHeaderCell('Name', width: 150),
+                  _buildTableHeaderCell('Email', width: 180),
+                  _buildTableHeaderCell('Role', width: 120),
+                  _buildTableHeaderCell('Program Study', width: 150),
+                  _buildTableHeaderCell('Faculty', width: 120),
+                  _buildTableHeaderCell('Department', width: 150),
+                  _buildTableHeaderCell('Phone', width: 120),
+                  _buildTableHeaderCell('Actions', width: 80),
+                ],
+              ),
+            ),
+            // Table Rows
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: paginatedEmployees.map((employee) {
+                    return _buildTableRow(employee);
+                  }).toList(),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Table Header Cell
+  Widget _buildTableHeaderCell(
+    String text, {
+    bool isCheckbox = false,
+    double? width,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
-      alignment: Alignment.center,
+      width: width ?? 40,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(right: BorderSide(color: Colors.grey.shade300)),
+      ),
       child: isCheckbox
           ? Checkbox(
               value:
@@ -809,12 +732,10 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
               onChanged: (value) {
                 setState(() {
                   if (value == true) {
-                    // Select all employees on current page
                     selectedEmployees.addAll(
                       paginatedEmployees.map((emp) => emp.id),
                     );
                   } else {
-                    // Deselect all employees on current page
                     for (var emp in paginatedEmployees) {
                       selectedEmployees.remove(emp.id);
                     }
@@ -824,28 +745,38 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               visualDensity: const VisualDensity(horizontal: -4, vertical: -4),
             )
-          : Text(
-              text,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: Colors.black87,
-              ),
-              overflow: TextOverflow.ellipsis,
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Expanded(
+                  child: Text(
+                    text,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (text.isNotEmpty)
+                  Icon(Icons.unfold_more, size: 14, color: Colors.grey[600]),
+              ],
             ),
     );
   }
 
-  Widget _buildEmployeeRow(UserModel employee) {
+  // Table Row
+  Widget _buildTableRow(UserModel employee) {
     final name = employee.username;
-    final email = employee.email ?? 'N/A';
+    final email = employee.email ?? '-';
     final employeeId = employee.id;
-    // Get role and format display
-    final roleName = employee.role?.name ?? '';
+    final roleName = employee.role?.name ?? '-';
     final role = roleName.toLowerCase().trim();
-    final prodi = employee.programStudy?.name;
-    
-    print('👤 Employee ${employee.username}: role="$roleName" (normalized: "$role"), prodi=$prodi');
+    final programStudy = employee.programStudy?.name ?? '-';
+    final faculty = employee.programStudy?.facultyName ?? '-';
+    final department = employee.programStudy?.departmentName ?? '-';
+    final phone = employee.phoneNumber ?? '-';
 
     String roleDisplay = '';
     if (role.contains('admin')) {
@@ -853,9 +784,10 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     } else if (role.contains('surveyor') || role.contains('tracer')) {
       roleDisplay = 'Team Tracer';
     } else if (role.contains('prodi') || role.contains('team prodi')) {
-      roleDisplay = prodi != null ? 'Team Prodi ($prodi)' : 'Team Prodi';
-    } else if (roleName.isNotEmpty) {
-      // Show the actual role name from backend if it doesn't match known patterns
+      roleDisplay = programStudy != '-'
+          ? 'Team Prodi ($programStudy)'
+          : 'Team Prodi';
+    } else if (roleName.isNotEmpty && roleName != '-') {
       roleDisplay = roleName;
     } else {
       roleDisplay = 'Unknown';
@@ -865,41 +797,35 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return Table(
-            columnWidths: const {
-              0: FixedColumnWidth(35),
-              1: FlexColumnWidth(2.2),
-              2: FlexColumnWidth(1.5),
-              3: FlexColumnWidth(1.2),
-              4: FixedColumnWidth(80),
-            },
-            children: [
-              TableRow(
-                children: [
-                  _buildDataCell('', isCheckbox: true, employeeId: employeeId),
-                  _buildDataCell(name),
-                  _buildDataCell(email),
-                  _buildDataCell(roleDisplay),
-                  _buildActionCell(employee),
-                ],
-              ),
-            ],
-          );
-        },
+      child: Row(
+        children: [
+          _buildTableCell('', isCheckbox: true, employeeId: employeeId),
+          _buildTableCell(name, width: 150),
+          _buildTableCell(email, width: 180),
+          _buildTableCell(roleDisplay, width: 120),
+          _buildTableCell(programStudy, width: 150),
+          _buildTableCell(faculty, width: 120),
+          _buildTableCell(department, width: 150),
+          _buildTableCell(phone, width: 120),
+          _buildActionCell(employee, width: 80),
+        ],
       ),
     );
   }
 
-  Widget _buildDataCell(
+  // Table Cell
+  Widget _buildTableCell(
     String text, {
     bool isCheckbox = false,
     String? employeeId,
+    double? width,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
-      alignment: Alignment.center,
+      width: width ?? 40,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(right: BorderSide(color: Colors.grey.shade300)),
+      ),
       child: isCheckbox
           ? Checkbox(
               value:
@@ -918,17 +844,18 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
             )
           : Text(
               text,
-              style: const TextStyle(fontSize: 10, color: Colors.black87),
+              style: const TextStyle(fontSize: 12, color: Colors.black87),
               overflow: TextOverflow.ellipsis,
-              maxLines: 1,
+              maxLines: 2,
             ),
     );
   }
 
-  Widget _buildActionCell(UserModel employee) {
+  // Action Cell with popup menu
+  Widget _buildActionCell(UserModel employee, {double? width}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 12),
-      alignment: Alignment.center,
+      width: width ?? 80,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       child: PopupMenuButton<String>(
         icon: Icon(Icons.more_vert, size: 18, color: Colors.grey.shade700),
         padding: EdgeInsets.zero,
@@ -970,112 +897,53 @@ class _EmployeeDirectoryPageState extends State<EmployeeDirectoryPage> {
     );
   }
 
-  void _showAvailableSurveys() {
-    final allSurveys = SurveyStorage.getAllAvailableSurveys();
-    final availableSurveys = allSurveys.where((survey) {
-      final isLive = survey['isLive'];
-      return isLive == true;
-    }).toList();
-
-    if (availableSurveys.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('No questionnaires available at this time'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-        ),
-        child: Column(
+  // Mobile Pagination
+  Widget _buildMobilePagination() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
+            Text(
+              '${((currentPage - 1) * itemsPerPage) + 1}-${(currentPage * itemsPerPage).clamp(0, filteredEmployees.length)} of ${filteredEmployees.length}',
+              style: const TextStyle(fontSize: 11),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Available Questionnaires',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left),
+                  onPressed: currentPage > 1
+                      ? () => setState(() => currentPage--)
+                      : null,
+                  iconSize: 18,
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
+                  padding: const EdgeInsets.all(4),
+                ),
+                Text(
+                  '$currentPage / $totalPages',
+                  style: const TextStyle(fontSize: 11),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right),
+                  onPressed: currentPage < totalPages
+                      ? () => setState(() => currentPage++)
+                      : null,
+                  iconSize: 18,
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
                   ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: availableSurveys.length,
-                itemBuilder: (context, index) {
-                  final survey = availableSurveys[index];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.blue[50],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          Icons.assignment_outlined,
-                          color: Colors.blue[700],
-                        ),
-                      ),
-                      title: Text(
-                        survey['name'] ?? 'Untitled Survey',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Text(
-                        survey['description'] ?? 'No description',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                TakeQuestionnairePage(survey: survey),
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
+                  padding: const EdgeInsets.all(4),
+                ),
+              ],
             ),
           ],
         ),
-      ),
+      ],
     );
   }
 }
