@@ -9,13 +9,12 @@ class ApiConfig {
   
   /// Set this to true for production deployment
   /// Set to false for local development
-  static const bool isProduction = false;
+  static const bool isProduction = true;
   
   /// Your production backend URL (ngrok, Heroku, AWS, etc.)
-  /// Example: 'https://your-app.ngrok-free.app'
-  /// Example: 'https://your-app.herokuapp.com'
-  /// Example: 'https://api.yourdomain.com'
-  static const String productionUrl = 'https://your-backend-url.ngrok-free.app';
+  /// Primary: Domain with HTTPS
+  /// Fallback IPs: 192.168.0.7, 100.111.43.115, 103.171.154.14
+  static const String productionUrl = 'http://tracer.neverlands.xyz:4101';
   
   /// Local development fallback (when auto-discovery fails)
   /// Use 10.0.2.2 for Android emulator (refers to host machine's localhost)
