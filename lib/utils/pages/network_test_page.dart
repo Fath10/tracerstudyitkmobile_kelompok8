@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
+
+import '../../config/api_config.dart';
 
 class NetworkTestPage extends StatefulWidget {
   const NetworkTestPage({super.key});
@@ -12,7 +15,20 @@ class NetworkTestPage extends StatefulWidget {
 class _NetworkTestPageState extends State<NetworkTestPage> {
   String _status = 'Not tested';
   bool _isTesting = false;
-  final String _backendUrl = 'http://192.168.0.105:8000';
+  String _backendUrl = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBackendUrl();
+  }
+
+  Future<void> _loadBackendUrl() async {
+    final url = await ApiConfig.getBaseUrl();
+    setState(() {
+      _backendUrl = url;
+    });
+  }
 
   Future<void> _testConnection() async {
     setState(() {
@@ -21,15 +37,19 @@ class _NetworkTestPageState extends State<NetworkTestPage> {
     });
 
     try {
-      final response = await http.get(
-        Uri.parse('$_backendUrl/api/roles/'),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 5));
+      final url = await ApiConfig.getBaseUrl();
+      final response = await http
+          .get(
+            Uri.parse('$url/api/roles/'),
+            headers: {'Content-Type': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         setState(() {
-          _status = '✅ SUCCESS!\nBackend is reachable\nFound ${data.length} roles';
+          _status =
+              '✅ SUCCESS!\nBackend is reachable\nFound ${data.length} roles';
           _isTesting = false;
         });
       } else {
@@ -40,7 +60,8 @@ class _NetworkTestPageState extends State<NetworkTestPage> {
       }
     } catch (e) {
       setState(() {
-        _status = '❌ ERROR\n$e\n\nCheck:\n1. Backend running?\n2. Same WiFi?\n3. IP correct?';
+        _status =
+            '❌ ERROR\n$e\n\nCheck:\n1. Backend running?\n2. Internet connection?';
         _isTesting = false;
       });
     }
@@ -81,7 +102,10 @@ class _NetworkTestPageState extends State<NetworkTestPage> {
                   onPressed: _testConnection,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 16,
+                    ),
                   ),
                   child: const Text(
                     'Test Connection',
