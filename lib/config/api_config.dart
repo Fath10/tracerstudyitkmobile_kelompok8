@@ -8,18 +8,19 @@ class ApiConfig {
   // ============================================================================
   
   /// Set this to true for production deployment
-  /// Set to false for local development
-  static const bool isProduction = true;
+  /// Set to false for local development/testing
+  static const bool isProduction = false;  // ← Set false untuk emulator testing
   
   /// Your production backend URL (ngrok, Heroku, AWS, etc.)
-  /// Primary: Domain with HTTPS
+  /// Primary: Domain with HTTPS (reverse proxy at /api/)
   /// Fallback IPs: 192.168.0.7, 100.111.43.115, 103.171.154.14
-  static const String productionUrl = 'http://tracer.neverlands.xyz:4101';
+  static const String productionUrl = 'https://tracer.neverlands.xyz';
   
   /// Local development fallback (when auto-discovery fails)
   /// Use 10.0.2.2 for Android emulator (refers to host machine's localhost)
   /// Use 127.0.0.1 for web/desktop development
-  static const String developmentFallback = 'http://127.0.0.1:8000';
+  /// UPDATE: Gunakan port 4101 untuk backend Docker
+  static const String developmentFallback = 'http://10.0.2.2:4101';
   
   // ============================================================================
   
